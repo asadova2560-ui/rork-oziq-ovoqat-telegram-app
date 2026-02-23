@@ -27,10 +27,7 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const { totalItems } = useCart();
   const { products, categories, featuredProducts, saleProducts } = useProducts();
-
-  const filteredProducts = useMemo(() => {
-    if (!searchQuery.trim()) return null;
-   const handleNotifications = async () => {
+const handleNotifications = async () => {
   const data = await AsyncStorage.getItem("notifications");
 
   if (!data) {
@@ -45,6 +42,9 @@ export default function HomeScreen() {
     notifications[0].message
   );
 };
+  const filteredProducts = useMemo(() => {
+    if (!searchQuery.trim()) return null;
+
     return products.filter(
       (p) =>
         p.nameUz.toLowerCase().includes(searchQuery.toLowerCase()) ||
