@@ -1,14 +1,45 @@
-import { View, Text, StyleSheet } from "react-native";
+import React from "react";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from "react-native";
+import { useFavorites } from "@/context/FavoritesContext";
+import Colors from "@/constants/colors";
 
-export default function OrdersScreen() {
+export default function FavoritesScreen() {
+  const { favorites, removeFromFavorites } = useFavorites();
+
+  if (favorites.length === 0) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.empty}>Sevimli mahsulotlar yo‘q</Text>
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.text}>Buyurtmalar tarixi</Text>
-    </View>
+    <FlatList
+      contentContainerStyle={{ padding: 16 }}
+      data={favorites}
+      keyExtractor={(item) => item.id}
+      renderItem={({ item }) => (
+        <View style={styles.card}>
+          <Text style={styles.title}>{item.name}</Text>
+          <Text>{item.price} so'm</Text>
+          <TouchableOpacity onPress={() => removeFromFavorites(item.id)}>
+            <Text style={{ color: "red", marginTop: 6 }}>O‘chirish</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center" },
-  text: { fontSize: 22, fontWeight: "700" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  empty: { fontSize: 18, fontWeight: "600", color: "gray" },
+  card: {
+    backgroundColor: Colors.white,
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
+  },
+  title: { fontSize: 16, fontWeight: "700" },
 });
