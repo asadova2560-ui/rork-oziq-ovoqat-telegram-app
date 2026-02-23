@@ -2,11 +2,13 @@
   "name": "expo-app",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "private": true,
   "scripts": {
     "start": "bunx rork start -p rkxtvhf7ctvvx3z6187ec --tunnel",
     "start-web": "bunx rork start -p rkxtvhf7ctvvx3z6187ec --web --tunnel",
     "start-web-dev": "DEBUG=expo* bunx rork start -p rkxtvhf7ctvvx3z6187ec --web --tunnel",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "build": "expo export -p web"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -42,7 +44,8 @@
     "react-native-svg": "15.12.1",
     "react-native-web": "^0.21.0",
     "react-native-worklets": "0.5.1",
-    "zustand": "^5.0.2"
+    "zustand": "^5.0.2",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
@@ -51,6 +54,5 @@
     "eslint": "^9.31.0",
     "eslint-config-expo": "~10.0.0",
     "typescript": "~5.9.2"
-  },
-  "private": true
+  }
 }
