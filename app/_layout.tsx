@@ -5,6 +5,7 @@ import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { CartProvider } from "@/context/CartContext";
 import { ProductsProvider } from "@/context/ProductsContext";
+import { FavoritesProvider } from "@/context/FavoritesContext"; // 🔥 QO‘SHILDI
 
 SplashScreen.preventAutoHideAsync();
 
@@ -47,9 +48,11 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView>
         <ProductsProvider>
-          <CartProvider>
-            <RootLayoutNav />
-          </CartProvider>
+          <FavoritesProvider> {/* 🔥 SHU YERGA O‘RAYDI */}
+            <CartProvider>
+              <RootLayoutNav />
+            </CartProvider>
+          </FavoritesProvider>
         </ProductsProvider>
       </GestureHandlerRootView>
     </QueryClientProvider>
