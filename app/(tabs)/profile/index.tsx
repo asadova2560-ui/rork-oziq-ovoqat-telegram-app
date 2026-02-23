@@ -128,7 +128,7 @@ export default function ProfileScreen() {
               icon={<MessageCircle size={20} color="#0088cc" />}
               label="Telegram orqali yozish"
               subtitle="Savollaringiz bo'lsa yozing"
-              onPress={() => Linking.openURL("https://t.me/+998200012560")}
+              onPress={() => Linking.openURL("https://t.me/cmfrttab")}
             />
             <MenuItem
               icon={<HelpCircle size={20} color="#8B5CF6" />}
