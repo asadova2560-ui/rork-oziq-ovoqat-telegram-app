@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -23,6 +23,8 @@ import {
 } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { CONTACT_PHONE } from "@/constants/config";
+
+const ADMIN_PIN = "25012004";
 
 interface MenuItemProps {
   icon: React.ReactNode;
@@ -52,6 +54,17 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
+  const [tgUser, setTgUser] = useState<any>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && (window as any).Telegram?.WebApp) {
+      const user = (window as any).Telegram.WebApp.initDataUnsafe?.user;
+      if (user) {
+        setTgUser(user);
+      }
+    }
+  }, []);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -64,8 +77,16 @@ export default function ProfileScreen() {
             <User size={32} color={Colors.white} />
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>Telegram foydalanuvchi</Text>
-            <Text style={styles.profilePhone}>{CONTACT_PHONE}</Text>
+            <Text style={styles.profileName}>
+              {tgUser?.first_name || "Foydalanuvchi"}
+            </Text>
+            <Text style={styles.profilePhone}>
+              {tgUser?.username
+                ? `@${tgUser.username}`
+                : tgUser?.id
+                ? `ID: ${tgUser.id}`
+                : CONTACT_PHONE}
+            </Text>
           </View>
         </View>
 
@@ -136,6 +157,20 @@ export default function ProfileScreen() {
               icon={<Settings size={20} color={Colors.textSecondary} />}
               label="Sozlamalar"
               subtitle="Tilni o'zgartirish va boshqalar"
+            />
+
+            <MenuItem
+              icon={<Settings size={20} color="red" />}
+              label="Admin Panel"
+              subtitle="Mahsulotlarni boshqarish"
+              onPress={() => {
+                const pin = prompt("Admin PIN kiriting");
+                if (pin === ADMIN_PIN) {
+                  router.push("/admin");
+                } else {
+                  alert("Noto‘g‘ri PIN");
+                }
+              }}
             />
           </View>
         </View>
