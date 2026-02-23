@@ -110,36 +110,34 @@ export default function CheckoutScreen() {
       return orderId;
     },
     onSuccess: () => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setOrderSuccess(true);
-      Animated.spring(successAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 50,
-        friction: 7,
-      }).start();
-      addOrder({
-  id: Date.now().toString().slice(-6),
-  date: new Date().toLocaleString(),
-  phone: phone.trim(),
-  address: address.trim(),
-  paymentMethod: paymentLabels[paymentMethod],
-  total: totalPrice,
-  items: items.map((item) => ({
-    name: item.weightGrams
-      ? `${item.product.nameUz} (${item.weightGrams >= 1000
-          ? `${item.weightGrams / 1000} kg`
-          : `${item.weightGrams} g`})`
-      : item.product.nameUz,
-    quantity: item.quantity,
-    price: item.weightGrams
-      ? Math.round(item.product.price * item.weightGrams / 1000)
-      : item.product.price,
-  })),
-  status: "Kutilmoqda",
-});
-      clearCart();
-    },
+
+  addOrder({
+    id: Date.now().toString(),
+    date: new Date().toISOString(),
+    phone,
+    address,
+    paymentMethod,
+    total: totalPrice,
+    items: items.map(item => ({
+      name: item.product.nameUz,
+      quantity: item.quantity,
+      price: item.product.price,
+    })),
+    status: "Yangi",
+  });
+
+  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  setOrderSuccess(true);
+
+  Animated.spring(successAnim, {
+    toValue: 1,
+    useNativeDriver: true,
+    tension: 50,
+    friction: 7,
+  }).start();
+
+  clearCart();
+},
     onError: (error) => {
       console.error("Order error:", error);
       Alert.alert(
