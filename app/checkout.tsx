@@ -32,6 +32,7 @@ import * as Haptics from "expo-haptics";
 import { useMutation } from "@tanstack/react-query";
 import Colors from "@/constants/colors";
 import { useCart } from "@/context/CartContext";
+import { useOrders } from "@/context/OrdersContext";
 import { formatPrice } from "@/utils/formatPrice";
 import { sendTelegramMessage, formatOrderMessage } from "@/utils/telegram";
 import { PAYMENT_CARD_NUMBER } from "@/constants/config";
@@ -49,6 +50,7 @@ export default function CheckoutScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { items, totalPrice, clearCart, getItemPrice } = useCart();
+  const { addOrder } = useOrders();
 
   const [phone, setPhone] = useState<string>("+998 ");
   const [address, setAddress] = useState<string>("");
@@ -116,6 +118,26 @@ export default function CheckoutScreen() {
         tension: 50,
         friction: 7,
       }).start();
+      addOrder({
+  id: Date.now().toString().slice(-6),
+  date: new Date().toLocaleString(),
+  phone: phone.trim(),
+  address: address.trim(),
+  paymentMethod: paymentLabels[paymentMethod],
+  total: totalPrice,
+  items: items.map((item) => ({
+    name: item.weightGrams
+      ? `${item.product.nameUz} (${item.weightGrams >= 1000
+          ? `${item.weightGrams / 1000} kg`
+          : `${item.weightGrams} g`})`
+      : item.product.nameUz,
+    quantity: item.quantity,
+    price: item.weightGrams
+      ? Math.round(item.product.price * item.weightGrams / 1000)
+      : item.product.price,
+  })),
+  status: "Kutilmoqda",
+});
       clearCart();
     },
     onError: (error) => {
