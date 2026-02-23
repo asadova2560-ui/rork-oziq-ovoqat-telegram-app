@@ -1,9 +1,9 @@
 import { View, Text, StyleSheet } from "react-native";
 
-export default function OrdersScreen() {
+export default function AddressesScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>Buyurtmalar tarixi</Text>
+      <Text style={styles.text}>Manzillarim</Text>
     </View>
   );
 }
