@@ -5,7 +5,6 @@ import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { CartProvider } from "@/context/CartContext";
 import { ProductsProvider } from "@/context/ProductsContext";
-import { AdminProvider } from "@/context/AdminContext"; // ✅ Qo‘shildi
 
 SplashScreen.preventAutoHideAsync();
 
@@ -47,13 +46,11 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView>
-        <AdminProvider> {/* ✅ Yangi qo‘shildi */}
-          <ProductsProvider>
-            <CartProvider>
-              <RootLayoutNav />
-            </CartProvider>
-          </ProductsProvider>
-        </AdminProvider>
+        <ProductsProvider>
+          <CartProvider>
+            <RootLayoutNav />
+          </CartProvider>
+        </ProductsProvider>
       </GestureHandlerRootView>
     </QueryClientProvider>
   );
