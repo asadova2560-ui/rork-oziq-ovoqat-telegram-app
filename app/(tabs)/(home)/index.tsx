@@ -1,3 +1,5 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Alert } from "react-native";
 import React, { useState, useMemo, useCallback, useRef } from "react";
 import {
   View,
@@ -28,6 +30,21 @@ export default function HomeScreen() {
 
   const filteredProducts = useMemo(() => {
     if (!searchQuery.trim()) return null;
+   const handleNotifications = async () => {
+  const data = await AsyncStorage.getItem("notifications");
+
+  if (!data) {
+    Alert.alert("Bildirishnomalar", "Hozircha xabar yo‘q");
+    return;
+  }
+
+  const notifications = JSON.parse(data);
+
+  Alert.alert(
+    notifications[0].title,
+    notifications[0].message
+  );
+};
     return products.filter(
       (p) =>
         p.nameUz.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -61,7 +78,10 @@ export default function HomeScreen() {
               <Text style={styles.address}>Qashqadaryo viloyati,Shahrisabz shahri </Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.notifBtn}>
+          <TouchableOpacity
+  style={styles.notificationButton}
+  onPress={handleNotifications}
+>
             <Bell size={22} color={Colors.text} />
             {totalItems > 0 && <View style={styles.notifDot} />}
           </TouchableOpacity>
