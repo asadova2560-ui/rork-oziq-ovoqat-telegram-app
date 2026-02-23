@@ -58,7 +58,7 @@ export default function HomeScreen() {
             <MapPin size={18} color={Colors.primary} />
             <View style={styles.locationText}>
               <Text style={styles.deliverTo}>Yetkazib berish</Text>
-              <Text style={styles.address}>Toshkent, Chilonzor tumani</Text>
+              <Text style={styles.address}>Qashqadaryo viloyati,Shahrisabz shahri </Text>
             </View>
           </View>
           <TouchableOpacity style={styles.notifBtn}>
