@@ -3,9 +3,12 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { CartProvider } from "@/context/CartContext";
+
 import { ProductsProvider } from "@/context/ProductsContext";
-import { FavoritesProvider } from "@/context/FavoritesContext"; // 🔥 QO‘SHILDI
+import { CartProvider } from "@/context/CartContext";
+import { FavoritesProvider } from "@/context/FavoritesContext";
+import { OrdersProvider } from "@/context/OrdersContext";
+import { SettingsProvider } from "@/context/SettingsContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -15,6 +18,7 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerBackTitle: "Orqaga" }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+
       <Stack.Screen
         name="product/[id]"
         options={{
@@ -22,6 +26,7 @@ function RootLayoutNav() {
           presentation: "modal",
         }}
       />
+
       <Stack.Screen
         name="checkout"
         options={{
@@ -29,10 +34,19 @@ function RootLayoutNav() {
           presentation: "modal",
         }}
       />
+
       <Stack.Screen
         name="admin"
         options={{
           headerShown: false,
+        }}
+      />
+
+      <Stack.Screen
+        name="settings"
+        options={{
+          headerShown: true,
+          title: "Sozlamalar",
         }}
       />
     </Stack>
@@ -46,14 +60,18 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <GestureHandlerRootView>
-        <ProductsProvider>
-          <FavoritesProvider> {/* 🔥 SHU YERGA O‘RAYDI */}
-            <CartProvider>
-              <RootLayoutNav />
-            </CartProvider>
-          </FavoritesProvider>
-        </ProductsProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SettingsProvider>
+          <ProductsProvider>
+            <FavoritesProvider>
+              <CartProvider>
+                <OrdersProvider>
+                  <RootLayoutNav />
+                </OrdersProvider>
+              </CartProvider>
+            </FavoritesProvider>
+          </ProductsProvider>
+        </SettingsProvider>
       </GestureHandlerRootView>
     </QueryClientProvider>
   );
