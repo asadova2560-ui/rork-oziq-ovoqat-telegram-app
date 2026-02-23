@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Linking,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -53,15 +54,12 @@ function MenuItem({ icon, label, subtitle, onPress }: MenuItemProps) {
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-
   const [tgUser, setTgUser] = useState<any>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined" && (window as any).Telegram?.WebApp) {
       const user = (window as any).Telegram.WebApp.initDataUnsafe?.user;
-      if (user) {
-        setTgUser(user);
-      }
+      if (user) setTgUser(user);
     }
   }, []);
 
@@ -107,6 +105,7 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* ASOSIY */}
         <View style={styles.menuSection}>
           <Text style={styles.sectionLabel}>Asosiy</Text>
           <View style={styles.menuCard}>
@@ -114,25 +113,30 @@ export default function ProfileScreen() {
               icon={<Clock size={20} color={Colors.primary} />}
               label="Buyurtmalar tarixi"
               subtitle="Oxirgi buyurtmalaringiz"
+              onPress={() => router.push("/orders")}
             />
             <MenuItem
               icon={<MapPin size={20} color={Colors.accent} />}
               label="Manzillarim"
               subtitle="Yetkazib berish manzillari"
+              onPress={() => router.push("/addresses")}
             />
             <MenuItem
               icon={<CreditCard size={20} color="#6366F1" />}
               label="To'lov usullari"
               subtitle="Karta va naqd pul"
+              onPress={() => router.push("/payments")}
             />
             <MenuItem
               icon={<Star size={20} color="#F59E0B" />}
               label="Sevimlilar"
               subtitle="Saqlangan mahsulotlar"
+              onPress={() => router.push("/favorites")}
             />
           </View>
         </View>
 
+        {/* QO‘SHIMCHA */}
         <View style={styles.menuSection}>
           <Text style={styles.sectionLabel}>Qo'shimcha</Text>
           <View style={styles.menuCard}>
@@ -152,13 +156,14 @@ export default function ProfileScreen() {
               icon={<HelpCircle size={20} color="#8B5CF6" />}
               label="Yordam"
               subtitle="Ko'p so'raladigan savollar"
+              onPress={() => Alert.alert("Yordam", "Tez orada qo‘shiladi")}
             />
             <MenuItem
               icon={<Settings size={20} color={Colors.textSecondary} />}
               label="Sozlamalar"
               subtitle="Tilni o'zgartirish va boshqalar"
+              onPress={() => Alert.alert("Sozlamalar", "Tez orada qo‘shiladi")}
             />
-
             <MenuItem
               icon={<Settings size={20} color="red" />}
               label="Admin Panel"
@@ -168,7 +173,7 @@ export default function ProfileScreen() {
                 if (pin === ADMIN_PIN) {
                   router.push("/admin");
                 } else {
-                  alert("Noto‘g‘ri PIN");
+                  Alert.alert("Xato", "Noto‘g‘ri PIN");
                 }
               }}
             />
@@ -180,128 +185,3 @@ export default function ProfileScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 4,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: Colors.text,
-  },
-  profileCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.white,
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 16,
-    borderRadius: 20,
-    gap: 14,
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 20,
-    backgroundColor: Colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  profileInfo: {
-    flex: 1,
-  },
-  profileName: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: Colors.text,
-  },
-  profilePhone: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  statsRow: {
-    flexDirection: "row",
-    backgroundColor: Colors.white,
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 16,
-    padding: 16,
-    justifyContent: "space-around",
-    alignItems: "center",
-  },
-  statItem: {
-    alignItems: "center",
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: Colors.text,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 2,
-    fontWeight: "500",
-  },
-  statDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: Colors.borderLight,
-  },
-  menuSection: {
-    marginTop: 22,
-    paddingHorizontal: 16,
-  },
-  sectionLabel: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: Colors.textSecondary,
-    marginBottom: 8,
-    marginLeft: 4,
-  },
-  menuCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    overflow: "hidden",
-  },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-    gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  menuIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: Colors.surfaceSecondary,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  menuContent: {
-    flex: 1,
-  },
-  menuLabel: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: Colors.text,
-  },
-  menuSubtitle: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 1,
-  },
-  bottomSpacer: {
-    height: 40,
-  },
-});
