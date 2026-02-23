@@ -7,8 +7,6 @@ import {
   ScrollView,
   Linking,
   Alert,
-  Modal,
-  TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -26,8 +24,6 @@ import {
 } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { CONTACT_PHONE } from "@/constants/config";
-
-const ADMIN_PIN = "25012004";
 
 interface MenuItemProps {
   icon: React.ReactNode;
@@ -53,8 +49,6 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [tgUser, setTgUser] = useState<any>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [pin, setPin] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined" && (window as any).Telegram?.WebApp) {
@@ -62,16 +56,6 @@ export default function ProfileScreen() {
       if (user) setTgUser(user);
     }
   }, []);
-
-  const checkPin = () => {
-    if (pin === ADMIN_PIN) {
-      setModalVisible(false);
-      setPin("");
-      router.push("/admin");
-    } else {
-      Alert.alert("Xato", "Noto‘g‘ri PIN");
-    }
-  };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -162,36 +146,13 @@ export default function ProfileScreen() {
               icon={<Settings size={20} color="red" />}
               label="Admin Panel"
               subtitle="Mahsulotlarni boshqarish"
-              onPress={() => setModalVisible(true)}
+              onPress={() => router.push("/admin-login")}
             />
           </View>
         </View>
 
         <View style={{ height: 40 }} />
       </ScrollView>
-
-      {/* PIN MODAL */}
-      <Modal visible={modalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Admin PIN</Text>
-            <TextInput
-              value={pin}
-              onChangeText={setPin}
-              placeholder="PIN kiriting"
-              keyboardType="numeric"
-              secureTextEntry
-              style={styles.input}
-            />
-            <TouchableOpacity style={styles.button} onPress={checkPin}>
-              <Text style={styles.buttonText}>Kirish</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginTop: 10 }}>
-              <Text style={{ color: "gray" }}>Bekor qilish</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -221,7 +182,12 @@ const styles = StyleSheet.create({
   profileName: { fontSize: 17, fontWeight: "700", color: Colors.text },
   profilePhone: { fontSize: 14, color: Colors.textSecondary },
   menuSection: { marginTop: 22, paddingHorizontal: 16 },
-  sectionLabel: { fontSize: 14, fontWeight: "700", color: Colors.textSecondary, marginBottom: 8 },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.textSecondary,
+    marginBottom: 8,
+  },
   menuCard: { backgroundColor: Colors.white, borderRadius: 16 },
   menuItem: {
     flexDirection: "row",
@@ -242,33 +208,4 @@ const styles = StyleSheet.create({
   menuContent: { flex: 1 },
   menuLabel: { fontSize: 15, fontWeight: "600", color: Colors.text },
   menuSubtitle: { fontSize: 12, color: Colors.textSecondary },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalBox: {
-    width: 280,
-    backgroundColor: "white",
-    padding: 20,
-    borderRadius: 16,
-    alignItems: "center",
-  },
-  modalTitle: { fontSize: 18, fontWeight: "700", marginBottom: 10 },
-  input: {
-    width: "100%",
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 12,
-  },
-  button: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 10,
-    paddingHorizontal: 30,
-    borderRadius: 8,
-  },
-  buttonText: { color: "white", fontWeight: "700" },
 });
