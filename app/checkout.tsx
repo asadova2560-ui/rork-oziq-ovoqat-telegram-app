@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useState, useCallback, useRef } from "react";
 import {
   View,
@@ -109,7 +110,7 @@ export default function CheckoutScreen() {
       }
       return orderId;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
 
   addOrder({
     id: Date.now().toString(),
@@ -126,15 +127,21 @@ export default function CheckoutScreen() {
     status: "Yangi",
   });
 
-  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  setOrderSuccess(true);
+  await AsyncStorage.setItem(
+    "notifications",
+    JSON.stringify([
+      {
+        id: Date.now().toString(),
+        title: "Buyurtma qabul qilindi",
+        message: "Buyurtmangiz tez orada yetkaziladi",
+        date: new Date().toISOString(),
+      },
+    ])
+  );
 
-  Animated.spring(successAnim, {
-    toValue: 1,
-    useNativeDriver: true,
-    tension: 50,
-    friction: 7,
-  }).start();
+  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+  setOrderSuccess(true);
 
   clearCart();
 },
