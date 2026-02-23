@@ -38,11 +38,7 @@ interface MenuItemProps {
 
 function MenuItem({ icon, label, subtitle, onPress }: MenuItemProps) {
   return (
-    <TouchableOpacity
-      style={styles.menuItem}
-      onPress={onPress}
-      activeOpacity={0.6}
-    >
+    <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.6}>
       <View style={styles.menuIconContainer}>{icon}</View>
       <View style={styles.menuContent}>
         <Text style={styles.menuLabel}>{label}</Text>
@@ -56,7 +52,6 @@ function MenuItem({ icon, label, subtitle, onPress }: MenuItemProps) {
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-
   const [tgUser, setTgUser] = useState<any>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [pin, setPin] = useState("");
@@ -85,6 +80,7 @@ export default function ProfileScreen() {
           <Text style={styles.title}>Profil</Text>
         </View>
 
+        {/* USER CARD */}
         <View style={styles.profileCard}>
           <View style={styles.avatar}>
             <User size={32} color={Colors.white} />
@@ -103,9 +99,65 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* ASOSIY */}
+        <View style={styles.menuSection}>
+          <Text style={styles.sectionLabel}>Asosiy</Text>
+          <View style={styles.menuCard}>
+            <MenuItem
+              icon={<Clock size={20} color={Colors.primary} />}
+              label="Buyurtmalar tarixi"
+              subtitle="Oxirgi buyurtmalaringiz"
+              onPress={() => router.push("/orders")}
+            />
+            <MenuItem
+              icon={<MapPin size={20} color={Colors.accent} />}
+              label="Manzillarim"
+              subtitle="Yetkazib berish manzillari"
+              onPress={() => router.push("/addresses")}
+            />
+            <MenuItem
+              icon={<CreditCard size={20} color="#6366F1" />}
+              label="To'lov usullari"
+              subtitle="Karta va naqd pul"
+              onPress={() => router.push("/payments")}
+            />
+            <MenuItem
+              icon={<Star size={20} color="#F59E0B" />}
+              label="Sevimlilar"
+              subtitle="Saqlangan mahsulotlar"
+              onPress={() => router.push("/favorites")}
+            />
+          </View>
+        </View>
+
+        {/* QO‘SHIMCHA */}
         <View style={styles.menuSection}>
           <Text style={styles.sectionLabel}>Qo'shimcha</Text>
           <View style={styles.menuCard}>
+            <MenuItem
+              icon={<Phone size={20} color={Colors.primary} />}
+              label="Aloqa"
+              subtitle={CONTACT_PHONE}
+              onPress={() => Linking.openURL(`tel:${CONTACT_PHONE}`)}
+            />
+            <MenuItem
+              icon={<MessageCircle size={20} color="#0088cc" />}
+              label="Telegram orqali yozish"
+              subtitle="Savollaringiz bo'lsa yozing"
+              onPress={() => Linking.openURL("https://t.me/+998200012560")}
+            />
+            <MenuItem
+              icon={<HelpCircle size={20} color="#8B5CF6" />}
+              label="Yordam"
+              subtitle="Ko'p so'raladigan savollar"
+              onPress={() => Alert.alert("Yordam", "Tez orada qo‘shiladi")}
+            />
+            <MenuItem
+              icon={<Settings size={20} color={Colors.textSecondary} />}
+              label="Sozlamalar"
+              subtitle="Tilni o'zgartirish va boshqalar"
+              onPress={() => Alert.alert("Sozlamalar", "Tez orada qo‘shiladi")}
+            />
             <MenuItem
               icon={<Settings size={20} color="red" />}
               label="Admin Panel"
@@ -115,7 +167,7 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <View style={styles.bottomSpacer} />
+        <View style={{ height: 40 }} />
       </ScrollView>
 
       {/* PIN MODAL */}
@@ -134,10 +186,7 @@ export default function ProfileScreen() {
             <TouchableOpacity style={styles.button} onPress={checkPin}>
               <Text style={styles.buttonText}>Kirish</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setModalVisible(false)}
-              style={{ marginTop: 10 }}
-            >
+            <TouchableOpacity onPress={() => setModalVisible(false)} style={{ marginTop: 10 }}>
               <Text style={{ color: "gray" }}>Bekor qilish</Text>
             </TouchableOpacity>
           </View>
@@ -172,18 +221,15 @@ const styles = StyleSheet.create({
   profileName: { fontSize: 17, fontWeight: "700", color: Colors.text },
   profilePhone: { fontSize: 14, color: Colors.textSecondary },
   menuSection: { marginTop: 22, paddingHorizontal: 16 },
-  sectionLabel: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: Colors.textSecondary,
-    marginBottom: 8,
-  },
+  sectionLabel: { fontSize: 14, fontWeight: "700", color: Colors.textSecondary, marginBottom: 8 },
   menuCard: { backgroundColor: Colors.white, borderRadius: 16 },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
     padding: 14,
     gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
   },
   menuIconContainer: {
     width: 40,
@@ -196,8 +242,6 @@ const styles = StyleSheet.create({
   menuContent: { flex: 1 },
   menuLabel: { fontSize: 15, fontWeight: "600", color: Colors.text },
   menuSubtitle: { fontSize: 12, color: Colors.textSecondary },
-  bottomSpacer: { height: 40 },
-
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
