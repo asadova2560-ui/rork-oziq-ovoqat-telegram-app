@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert } from "react-native";
-import React, { useState, useMemo, useCallback, useRef } from "react";
+import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -27,21 +27,48 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const { totalItems } = useCart();
   const { products, categories, featuredProducts, saleProducts } = useProducts();
-const handleNotifications = async () => {
+  const [hasNotification, setHasNotification] = useState(false);
+  useEffect(() => {
+  const checkNotifications = async () => {
+    const data = await AsyncStorage.getItem("notifications");
+
+    if (data) {
+      const notifications = JSON.parse(data);
+
+      if (notifications.length > 0) {
+        setHasNotification(true);
+      }
+    }
+  };
+
+  checkNotifications();
+}, []);
+  const handleNotifications = async () => {
   const data = await AsyncStorage.getItem("notifications");
 
   if (!data) {
     Alert.alert("Bildirishnomalar", "Hozircha xabar yo‘q");
+    setHasNotification(false);
     return;
   }
 
   const notifications = JSON.parse(data);
 
+  if (notifications.length === 0) {
+    Alert.alert("Bildirishnomalar", "Hozircha xabar yo‘q");
+    setHasNotification(false);
+    return;
+  }
+
   Alert.alert(
     notifications[0].title,
     notifications[0].message
   );
+
+  // 🔥 dot o‘chadi
+  setHasNotification(false);
 };
+  
   const filteredProducts = useMemo(() => {
     if (!searchQuery.trim()) return null;
 
@@ -83,7 +110,7 @@ const handleNotifications = async () => {
   onPress={handleNotifications}
 >
             <Bell size={22} color={Colors.text} />
-            {totalItems > 0 && <View style={styles.notifDot} />}
+            {hasNotification && <View style={styles.notifDot} />}
           </TouchableOpacity>
         </View>
 
