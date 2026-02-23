@@ -33,7 +33,6 @@ import { useMutation } from "@tanstack/react-query";
 import Colors from "@/constants/colors";
 import { useCart } from "@/context/CartContext";
 import { useOrders } from "@/context/OrdersContext";
-import { useOrders } from "@/context/OrdersContext";
 import { formatPrice } from "@/utils/formatPrice";
 import { sendTelegramMessage, formatOrderMessage } from "@/utils/telegram";
 import { PAYMENT_CARD_NUMBER } from "@/constants/config";
