@@ -1,4 +1,4 @@
-import { RamazonWidget } from "@/components/ramazon/RamazonWidget";
+import RamazonWidget from "@/components/ramazon/RamazonWidget";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert } from "react-native";
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
