@@ -25,7 +25,6 @@ import { Image } from "expo-image";
 import Colors from "@/constants/colors";
 import { CategoryCard } from "@/components/CategoryCard";
 import { ProductCard } from "@/components/ProductCard";
-import { useCart } from "@/context/CartContext";
 import { useProducts } from "@/context/ProductsContext";
 
 const { width } = Dimensions.get("window");
@@ -55,10 +54,9 @@ export default function HomeScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [hasNotification, setHasNotification] = useState(false);
-  const [isFocused, setIsFocused] = useState(false); // 🔥 qo‘shildi
+  const [isFocused, setIsFocused] = useState(false);
 
-  const { products, categories, featuredProducts, saleProducts } =
-    useProducts();
+  const { products, categories, featuredProducts } = useProducts();
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -157,7 +155,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* 🔥 YANGILANGAN SEARCH */}
+        {/* PROFESSIONAL SEARCH */}
         <View
           style={[
             styles.searchContainer,
@@ -177,13 +175,14 @@ export default function HomeScreen() {
             onChangeText={setSearchQuery}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
+            selectionColor={Colors.primary}
+            cursorColor={Colors.primary}
           />
         </View>
       </View>
 
       <RamazonWidget />
 
-      {/* QOLGAN KODING O‘ZGARMAGAN */}
       {filteredProducts ? (
         <FlatList
           data={filteredProducts}
@@ -308,23 +307,23 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.surfaceSecondary,
-    borderRadius: 16,
+    backgroundColor: "#F4F6F8",
+    borderRadius: 20,
     paddingHorizontal: 16,
-    height: 52,
-    borderWidth: 1,
+    height: 54,
+    borderWidth: 2,
     borderColor: "transparent",
   },
 
   searchContainerFocused: {
     borderColor: Colors.primary,
-    backgroundColor: Colors.white,
+    backgroundColor: "#FFFFFF",
   },
 
   searchInput: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: "500",
+    fontSize: 17,
+    fontWeight: "600",
     color: Colors.text,
     marginLeft: 10,
   },
