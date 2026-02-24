@@ -48,21 +48,31 @@ function adjustTime(time: string, minus: number) {
 }
 
 export default function RamazonWidget() {
-  const todayDate = new Date().getDate();
+
+  const today = new Date();
+
+  // 🔥 Ramazon tugash sanasi — 20 mart 2026
+  const ramazonEnd = new Date(2026, 2, 20); // 2 = mart
+
+  // 21-martdan boshlab widget ko‘rinmaydi
+  if (today > ramazonEnd) {
+    return null;
+  }
+
+  const todayDate = today.getDate();
 
   const todayData = ramazonData.find(
     (item) => item.date === todayDate
   );
 
-  const saharlik = todayData
-    ? adjustTime(todayData.saharlik, 4) // -4 minut
-    : "--:--";
+  if (!todayData) {
+    return null; // agar jadvalda sana topilmasa ham yashirinadi
+  }
 
-  const iftorlik = todayData
-    ? adjustTime(todayData.iftorlik, 3) // -3 minut
-    : "--:--";
+  const saharlik = adjustTime(todayData.saharlik, 4); // -4 minut
+  const iftorlik = adjustTime(todayData.iftorlik, 3); // -3 minut
 
-  const todayText = new Date().toLocaleDateString("uz-UZ", {
+  const todayText = today.toLocaleDateString("uz-UZ", {
     weekday: "long",
     day: "numeric",
     month: "long",
