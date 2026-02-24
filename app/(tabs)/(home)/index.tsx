@@ -55,11 +55,11 @@ export default function HomeScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [hasNotification, setHasNotification] = useState(false);
+  const [isFocused, setIsFocused] = useState(false); // 🔥 qo‘shildi
 
   const { products, categories, featuredProducts, saleProducts } =
     useProducts();
 
-  // 🔁 AUTO SLIDER
   useEffect(() => {
     const interval = setInterval(() => {
       const nextIndex =
@@ -76,7 +76,6 @@ export default function HomeScreen() {
     return () => clearInterval(interval);
   }, [currentIndex]);
 
-  // 🔔 NOTIFICATIONS
   useEffect(() => {
     const checkNotifications = async () => {
       const data = await AsyncStorage.getItem("notifications");
@@ -137,7 +136,6 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* HEADER */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View style={styles.locationRow}>
@@ -159,20 +157,33 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.searchContainer}>
-          <Search size={20} color={Colors.textLight} />
+        {/* 🔥 YANGILANGAN SEARCH */}
+        <View
+          style={[
+            styles.searchContainer,
+            isFocused && styles.searchContainerFocused,
+          ]}
+        >
+          <Search
+            size={20}
+            color={isFocused ? Colors.primary : Colors.textLight}
+          />
+
           <TextInput
             style={styles.searchInput}
             placeholder="Mahsulotlarni qidiring..."
             placeholderTextColor={Colors.textLight}
             value={searchQuery}
             onChangeText={setSearchQuery}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
           />
         </View>
       </View>
 
       <RamazonWidget />
 
+      {/* QOLGAN KODING O‘ZGARMAGAN */}
       {filteredProducts ? (
         <FlatList
           data={filteredProducts}
@@ -186,7 +197,6 @@ export default function HomeScreen() {
         />
       ) : (
         <ScrollView showsVerticalScrollIndicator={false}>
-          {/* 🔥 SLIDER */}
           <FlatList
             ref={flatListRef}
             data={banners}
@@ -299,12 +309,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: Colors.surfaceSecondary,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    height: 46,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 52,
+    borderWidth: 1,
+    borderColor: "transparent",
   },
 
-  searchInput: { flex: 1, marginLeft: 10 },
+  searchContainerFocused: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.white,
+  },
+
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "500",
+    color: Colors.text,
+    marginLeft: 10,
+  },
 
   banner: {
     backgroundColor: Colors.primaryLight,
