@@ -115,18 +115,20 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.searchContainer}>
-          <Search size={20} color={Colors.textLight} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Mahsulotlarni qidiring..."
-            placeholderTextColor={Colors.textLight}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            testID="search-input"
-          />
-        </View>
-      </View>
+     <View style={styles.searchContainer}>
+  <Search size={20} color={Colors.textLight} />
+  <TextInput
+    style={styles.searchInput}
+    placeholder="Mahsulotlarni qidiring..."
+    placeholderTextColor={Colors.textLight}
+    value={searchQuery}
+    onChangeText={setSearchQuery}
+    testID="search-input"
+  />
+</View>
+</View>   {/* header tugadi */}
+
+<RamazonWidget />
 
       {filteredProducts ? (
         <FlatList
