@@ -1,11 +1,6 @@
 import RamazonWidget from "@/components/ramazon/RamazonWidget";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Keyboard,
-} from "react-native";
+import { Alert } from "react-native";
 import React, {
   useState,
   useMemo,
@@ -30,6 +25,7 @@ import { Image } from "expo-image";
 import Colors from "@/constants/colors";
 import { CategoryCard } from "@/components/CategoryCard";
 import { ProductCard } from "@/components/ProductCard";
+import { useCart } from "@/context/CartContext";
 import { useProducts } from "@/context/ProductsContext";
 
 const { width } = Dimensions.get("window");
@@ -59,10 +55,10 @@ export default function HomeScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [hasNotification, setHasNotification] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [isFocused, setIsFocused] = useState(false); // 🔥 qo‘shildi
 
-  const { products, categories, featuredProducts } = useProducts();
+  const { products, categories, featuredProducts, saleProducts } =
+    useProducts();
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -91,21 +87,6 @@ export default function HomeScreen() {
       }
     };
     checkNotifications();
-  }, []);
-
-  useEffect(() => {
-    const showSub = Keyboard.addListener("keyboardDidShow", () => {
-      setKeyboardVisible(true);
-    });
-
-    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
-      setKeyboardVisible(false);
-    });
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
   }, []);
 
   const handleNotifications = async () => {
@@ -154,83 +135,157 @@ export default function HomeScreen() {
   );
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <View style={styles.locationRow}>
-              <MapPin size={18} color={Colors.primary} />
-              <View>
-                <Text style={styles.deliverTo}>Yetkazib berish</Text>
-                <Text style={styles.address}>
-                  Qashqadaryo viloyati, Shahrisabz shahri
-                </Text>
-              </View>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <View style={styles.locationRow}>
+            <MapPin size={18} color={Colors.primary} />
+            <View>
+              <Text style={styles.deliverTo}>Yetkazib berish</Text>
+              <Text style={styles.address}>
+                Qashqadaryo viloyati, Shahrisabz shahri
+              </Text>
             </View>
-
-            <TouchableOpacity
-              style={styles.notifBtn}
-              onPress={handleNotifications}
-            >
-              <Bell size={22} color={Colors.text} />
-              {hasNotification && <View style={styles.notifDot} />}
-            </TouchableOpacity>
           </View>
 
-          <View
-            style={[
-              styles.searchContainer,
-              isFocused && styles.searchContainerFocused,
-            ]}
+          <TouchableOpacity
+            style={styles.notifBtn}
+            onPress={handleNotifications}
           >
-            <Search
-              size={20}
-              color={isFocused ? Colors.primary : Colors.textLight}
-            />
-
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Mahsulotlarni qidiring..."
-              placeholderTextColor={Colors.textLight}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              selectionColor={Colors.primary}
-              cursorColor={Colors.primary}
-              returnKeyType="search"
-            />
-          </View>
+            <Bell size={22} color={Colors.text} />
+            {hasNotification && <View style={styles.notifDot} />}
+          </TouchableOpacity>
         </View>
 
-        {!keyboardVisible && <RamazonWidget />}
+        {/* 🔥 YANGILANGAN SEARCH */}
+        <View
+          style={[
+            styles.searchContainer,
+            isFocused && styles.searchContainerFocused,
+          ]}
+        >
+          <Search
+            size={20}
+            color={isFocused ? Colors.primary : Colors.textLight}
+          />
 
-        {/* qolgan qism o‘zgarmagan */}
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Mahsulotlarni qidiring..."
+            placeholderTextColor={Colors.textLight}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+          />
+        </View>
       </View>
-    </KeyboardAvoidingView>
+
+      <RamazonWidget />
+
+      {/* QOLGAN KODING O‘ZGARMAGAN */}
+      {filteredProducts ? (
+        <FlatList
+          data={filteredProducts}
+          numColumns={2}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <View style={{ flex: 1 }}>
+              <ProductCard product={item} />
+            </View>
+          )}
+        />
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <FlatList
+            ref={flatListRef}
+            data={banners}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <View style={[styles.banner, { width }]}>
+                <View style={styles.bannerContent}>
+                  <Text style={styles.bannerTitle}>{item.title}</Text>
+                  <Text style={styles.bannerSubtitle}>
+                    {item.subtitle}
+                  </Text>
+
+                  <TouchableOpacity
+                    style={styles.bannerBtn}
+                    onPress={() =>
+                      router.push("/catalog" as never)
+                    }
+                  >
+                    <Text style={styles.bannerBtnText}>
+                      Xarid qilish
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Image
+                  source={{ uri: item.image }}
+                  style={styles.bannerImage}
+                  contentFit="cover"
+                />
+              </View>
+            )}
+          />
+
+          {renderSectionHeader("Kategoriyalar", () =>
+            router.push("/catalog" as never)
+          )}
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {categories.map((cat) => (
+              <CategoryCard key={cat.id} category={cat} />
+            ))}
+          </ScrollView>
+
+          {renderSectionHeader("Mashhur mahsulotlar", () =>
+            router.push("/catalog" as never)
+          )}
+
+          <FlatList
+            data={featuredProducts}
+            horizontal
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <View style={{ width: 165 }}>
+                <ProductCard product={item} />
+              </View>
+            )}
+          />
+        </ScrollView>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+
   header: {
     backgroundColor: Colors.white,
     padding: 16,
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
   },
+
   headerTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
   },
+
   locationRow: { flexDirection: "row", gap: 8 },
+
   deliverTo: { fontSize: 11, color: Colors.textSecondary },
+
   address: { fontSize: 14, fontWeight: "700", color: Colors.text },
+
   notifBtn: {
     width: 42,
     height: 42,
@@ -239,6 +294,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+
   notifDot: {
     position: "absolute",
     top: 8,
@@ -248,25 +304,76 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: Colors.accent,
   },
+
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F4F6F8",
-    borderRadius: 20,
+    backgroundColor: Colors.surfaceSecondary,
+    borderRadius: 16,
     paddingHorizontal: 16,
-    height: 54,
-    borderWidth: 2,
+    height: 52,
+    borderWidth: 1,
     borderColor: "transparent",
   },
+
   searchContainerFocused: {
     borderColor: Colors.primary,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Colors.white,
   },
+
   searchInput: {
     flex: 1,
-    fontSize: 17,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "500",
     color: Colors.text,
     marginLeft: 10,
   },
+
+  banner: {
+    backgroundColor: Colors.primaryLight,
+    borderRadius: 20,
+    flexDirection: "row",
+    overflow: "hidden",
+    height: 140,
+  },
+
+  bannerContent: { flex: 1, padding: 18 },
+
+  bannerTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: Colors.primaryDark,
+  },
+
+  bannerSubtitle: {
+    fontSize: 13,
+    color: Colors.primary,
+    marginTop: 4,
+  },
+
+  bannerBtn: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginTop: 12,
+  },
+
+  bannerBtnText: { color: Colors.white, fontWeight: "700" },
+
+  bannerImage: { width: 140, height: "100%" },
+
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    marginTop: 22,
+    marginBottom: 12,
+  },
+
+  sectionTitle: { fontSize: 18, fontWeight: "800" },
+
+  seeAllBtn: { flexDirection: "row", alignItems: "center" },
+
+  seeAllText: { color: Colors.primary, fontWeight: "600" },
 });
