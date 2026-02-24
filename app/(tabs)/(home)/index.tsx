@@ -1,6 +1,12 @@
 import RamazonWidget from "@/components/ramazon/RamazonWidget";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Alert } from "react-native";
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
+} from "react-native";
 import React, {
   useState,
   useMemo,
@@ -55,9 +61,11 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [hasNotification, setHasNotification] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   const { products, categories, featuredProducts } = useProducts();
 
+  // 🔁 Auto slider
   useEffect(() => {
     const interval = setInterval(() => {
       const nextIndex =
@@ -74,6 +82,7 @@ export default function HomeScreen() {
     return () => clearInterval(interval);
   }, [currentIndex]);
 
+  // 🔔 Notification check
   useEffect(() => {
     const checkNotifications = async () => {
       const data = await AsyncStorage.getItem("notifications");
@@ -85,6 +94,22 @@ export default function HomeScreen() {
       }
     };
     checkNotifications();
+  }, []);
+
+  // ⌨️ Keyboard listener
+  useEffect(() => {
+    const showSub = Keyboard.addListener("keyboardDidShow", () => {
+      setKeyboardVisible(true);
+    });
+
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
+      setKeyboardVisible(false);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
   }, []);
 
   const handleNotifications = async () => {
@@ -133,132 +158,150 @@ export default function HomeScreen() {
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View style={styles.locationRow}>
-            <MapPin size={18} color={Colors.primary} />
-            <View>
-              <Text style={styles.deliverTo}>Yetkazib berish</Text>
-              <Text style={styles.address}>
-                Qashqadaryo viloyati, Shahrisabz shahri
-              </Text>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
+          <View style={styles.header}>
+            <View style={styles.headerTop}>
+              <View style={styles.locationRow}>
+                <MapPin size={18} color={Colors.primary} />
+                <View>
+                  <Text style={styles.deliverTo}>Yetkazib berish</Text>
+                  <Text style={styles.address}>
+                    Qashqadaryo viloyati, Shahrisabz shahri
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.notifBtn}
+                onPress={handleNotifications}
+              >
+                <Bell size={22} color={Colors.text} />
+                {hasNotification && <View style={styles.notifDot} />}
+              </TouchableOpacity>
+            </View>
+
+            <View
+              style={[
+                styles.searchContainer,
+                isFocused && styles.searchContainerFocused,
+              ]}
+            >
+              <Search
+                size={20}
+                color={isFocused ? Colors.primary : Colors.textLight}
+              />
+
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Mahsulotlarni qidiring..."
+                placeholderTextColor={Colors.textLight}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                selectionColor={Colors.primary}
+                cursorColor={Colors.primary}
+                returnKeyType="search"
+              />
             </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.notifBtn}
-            onPress={handleNotifications}
-          >
-            <Bell size={22} color={Colors.text} />
-            {hasNotification && <View style={styles.notifDot} />}
-          </TouchableOpacity>
-        </View>
+          {/* 🔥 Keyboard ochilganda Ramazon yashirinadi */}
+          {!keyboardVisible && <RamazonWidget />}
 
-        {/* PROFESSIONAL SEARCH */}
-        <View
-          style={[
-            styles.searchContainer,
-            isFocused && styles.searchContainerFocused,
-          ]}
-        >
-          <Search
-            size={20}
-            color={isFocused ? Colors.primary : Colors.textLight}
-          />
-
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Mahsulotlarni qidiring..."
-            placeholderTextColor={Colors.textLight}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onFocus={() => setIsFocused(true)}
-            onBlur={() => setIsFocused(false)}
-            selectionColor={Colors.primary}
-            cursorColor={Colors.primary}
-          />
-        </View>
-      </View>
-
-      <RamazonWidget />
-
-      {filteredProducts ? (
-        <FlatList
-          data={filteredProducts}
-          numColumns={2}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={{ flex: 1 }}>
-              <ProductCard product={item} />
-            </View>
-          )}
-        />
-      ) : (
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <FlatList
-            ref={flatListRef}
-            data={banners}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <View style={[styles.banner, { width }]}>
-                <View style={styles.bannerContent}>
-                  <Text style={styles.bannerTitle}>{item.title}</Text>
-                  <Text style={styles.bannerSubtitle}>
-                    {item.subtitle}
-                  </Text>
-
-                  <TouchableOpacity
-                    style={styles.bannerBtn}
-                    onPress={() =>
-                      router.push("/catalog" as never)
-                    }
-                  >
-                    <Text style={styles.bannerBtnText}>
-                      Xarid qilish
-                    </Text>
-                  </TouchableOpacity>
+          {filteredProducts ? (
+            <FlatList
+              data={filteredProducts}
+              numColumns={2}
+              keyExtractor={(item) => item.id}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <View style={{ flex: 1 }}>
+                  <ProductCard product={item} />
                 </View>
+              )}
+            />
+          ) : (
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* 🔥 Keyboard ochilganda banner yashirinadi */}
+              {!keyboardVisible && (
+                <FlatList
+                  ref={flatListRef}
+                  data={banners}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  keyExtractor={(item) => item.id}
+                  renderItem={({ item }) => (
+                    <View style={[styles.banner, { width }]}>
+                      <View style={styles.bannerContent}>
+                        <Text style={styles.bannerTitle}>
+                          {item.title}
+                        </Text>
+                        <Text style={styles.bannerSubtitle}>
+                          {item.subtitle}
+                        </Text>
 
-                <Image
-                  source={{ uri: item.image }}
-                  style={styles.bannerImage}
-                  contentFit="cover"
+                        <TouchableOpacity
+                          style={styles.bannerBtn}
+                          onPress={() =>
+                            router.push("/catalog" as never)
+                          }
+                        >
+                          <Text style={styles.bannerBtnText}>
+                            Xarid qilish
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <Image
+                        source={{ uri: item.image }}
+                        style={styles.bannerImage}
+                        contentFit="cover"
+                      />
+                    </View>
+                  )}
                 />
-              </View>
-            )}
-          />
+              )}
 
-          {renderSectionHeader("Kategoriyalar", () =>
-            router.push("/catalog" as never)
+              {renderSectionHeader("Kategoriyalar", () =>
+                router.push("/catalog" as never)
+              )}
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {categories.map((cat) => (
+                  <CategoryCard key={cat.id} category={cat} />
+                ))}
+              </ScrollView>
+
+              {renderSectionHeader("Mashhur mahsulotlar", () =>
+                router.push("/catalog" as never)
+              )}
+
+              <FlatList
+                data={featuredProducts}
+                horizontal
+                keyExtractor={(item) => item.id}
+                keyboardShouldPersistTaps="handled"
+                renderItem={({ item }) => (
+                  <View style={{ width: 165 }}>
+                    <ProductCard product={item} />
+                  </View>
+                )}
+              />
+            </ScrollView>
           )}
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {categories.map((cat) => (
-              <CategoryCard key={cat.id} category={cat} />
-            ))}
-          </ScrollView>
-
-          {renderSectionHeader("Mashhur mahsulotlar", () =>
-            router.push("/catalog" as never)
-          )}
-
-          <FlatList
-            data={featuredProducts}
-            horizontal
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <View style={{ width: 165 }}>
-                <ProductCard product={item} />
-              </View>
-            )}
-          />
-        </ScrollView>
-      )}
-    </View>
+        </View>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }
 
