@@ -1,102 +1,79 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import createContextHook from "@nkzw/create-context-hook";
 import { Product, Category } from "@/types/product";
-import { products as defaultProducts } from "@/mocks/products";
-import { categories as defaultCategories } from "@/mocks/categories";
-
-const PRODUCTS_KEY = "store_products";
-const CATEGORIES_KEY = "store_categories";
+import { supabase } from "@/lib/supabase";
 
 export const [ProductsProvider, useProducts] = createContextHook(() => {
-  const [products, setProducts] = useState<Product[]>(defaultProducts);
-  const [categoriesList, setCategoriesList] = useState<Category[]>(defaultCategories);
-  const queryClient = useQueryClient();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const productsQuery = useQuery({
-    queryKey: ["products"],
-    queryFn: async () => {
-      const stored = await AsyncStorage.getItem(PRODUCTS_KEY);
-      return stored ? (JSON.parse(stored) as Product[]) : defaultProducts;
-    },
-  });
+  // 🔥 FETCH PRODUCTS
+  const fetchProducts = async () => {
+    const { data, error } = await supabase
+      .from("products")
+      .select("*");
 
-  const categoriesQuery = useQuery({
-    queryKey: ["categories"],
-    queryFn: async () => {
-      const stored = await AsyncStorage.getItem(CATEGORIES_KEY);
-      return stored ? (JSON.parse(stored) as Category[]) : defaultCategories;
-    },
-  });
+    if (!error && data) {
+      setProducts(data);
+    }
 
-  const syncProductsMutation = useMutation({
-    mutationFn: async (items: Product[]) => {
-      await AsyncStorage.setItem(PRODUCTS_KEY, JSON.stringify(items));
-      return items;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-    },
-  });
+    setIsLoading(false);
+  };
 
-  const syncCategoriesMutation = useMutation({
-    mutationFn: async (items: Category[]) => {
-      await AsyncStorage.setItem(CATEGORIES_KEY, JSON.stringify(items));
-      return items;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["categories"] });
-    },
-  });
+  // 🔥 FETCH CATEGORIES
+  const fetchCategories = async () => {
+    const { data, error } = await supabase
+      .from("categories")
+      .select("*");
+
+    if (!error && data) {
+      setCategories(data);
+    }
+  };
 
   useEffect(() => {
-    if (productsQuery.data) {
-      setProducts(productsQuery.data);
+    fetchProducts();
+    fetchCategories();
+  }, []);
+
+  // 🔥 ADD
+  const addProduct = useCallback(async (product: Product) => {
+    const { error } = await supabase
+      .from("products")
+      .insert([product]);
+
+    if (!error) {
+      fetchProducts();
     }
-  }, [productsQuery.data]);
+  }, []);
 
-  useEffect(() => {
-    if (categoriesQuery.data) {
-      setCategoriesList(categoriesQuery.data);
-    }
-  }, [categoriesQuery.data]);
-
-  const addProduct = useCallback(
-    (product: Product) => {
-      const updated = [...products, product];
-      setProducts(updated);
-      syncProductsMutation.mutate(updated);
-    },
-    [products, syncProductsMutation]
-  );
-
+  // 🔥 UPDATE
   const updateProduct = useCallback(
-    (productId: string, updates: Partial<Product>) => {
-      const updated = products.map((p) =>
-        p.id === productId ? { ...p, ...updates } : p
-      );
-      setProducts(updated);
-      syncProductsMutation.mutate(updated);
+    async (productId: string, updates: Partial<Product>) => {
+      const { error } = await supabase
+        .from("products")
+        .update(updates)
+        .eq("id", productId);
+
+      if (!error) {
+        fetchProducts();
+      }
     },
-    [products, syncProductsMutation]
+    []
   );
 
-  const deleteProduct = useCallback(
-    (productId: string) => {
-      const updated = products.filter((p) => p.id !== productId);
-      setProducts(updated);
-      syncProductsMutation.mutate(updated);
-    },
-    [products, syncProductsMutation]
-  );
+  // 🔥 DELETE
+  const deleteProduct = useCallback(async (productId: string) => {
+    const { error } = await supabase
+      .from("products")
+      .delete()
+      .eq("id", productId);
 
-  const resetToDefaults = useCallback(() => {
-    setProducts(defaultProducts);
-    setCategoriesList(defaultCategories);
-    syncProductsMutation.mutate(defaultProducts);
-    syncCategoriesMutation.mutate(defaultCategories);
-  }, [syncProductsMutation, syncCategoriesMutation]);
+    if (!error) {
+      fetchProducts();
+    }
+  }, []);
 
   const getProductById = useCallback(
     (id: string) => products.find((p) => p.id === id),
@@ -104,7 +81,8 @@ export const [ProductsProvider, useProducts] = createContextHook(() => {
   );
 
   const getProductsByCategory = useCallback(
-    (categoryId: string) => products.filter((p) => p.categoryId === categoryId),
+    (categoryId: string) =>
+      products.filter((p) => p.categoryId === categoryId),
     [products]
   );
 
@@ -120,15 +98,14 @@ export const [ProductsProvider, useProducts] = createContextHook(() => {
 
   return {
     products,
-    categories: categoriesList,
+    categories,
     addProduct,
     updateProduct,
     deleteProduct,
-    resetToDefaults,
     getProductById,
     getProductsByCategory,
     featuredProducts,
     saleProducts,
-    isLoading: productsQuery.isLoading,
+    isLoading,
   };
 });
