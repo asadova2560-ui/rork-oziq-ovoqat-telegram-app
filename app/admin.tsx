@@ -563,7 +563,6 @@ export default function AdminScreen() {
 } catch (e) {
   Alert.alert("Upload xato");
 }  
->
   <Text>Rasm tanlash</Text>
 </TouchableOpacity>
 
