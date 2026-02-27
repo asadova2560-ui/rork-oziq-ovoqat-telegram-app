@@ -168,13 +168,13 @@ export default function AdminScreen() {
       isFeatured: formIsFeatured,
       isOnSale: formIsOnSale,
     };
-
-    if (isAdding) {
+if (isAdding) {
   await addProduct(productData);
 } else if (editingProduct) {
-      updateProduct(editingProduct.id, productData);
-    }
-
+  await updateProduct(editingProduct.id, productData);
+}
+        }
+                                 
     setModalVisible(false);
   }, [
     formName,
