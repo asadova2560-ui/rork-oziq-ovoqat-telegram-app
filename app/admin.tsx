@@ -1,3 +1,4 @@
+import * as ImagePicker from "expo-image-picker";
 import { supabase } from "@/lib/supabase";
 import React, { useState, useCallback, useMemo } from "react";
 import {
