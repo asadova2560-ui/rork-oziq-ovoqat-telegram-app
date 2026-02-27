@@ -528,31 +528,7 @@ export default function AdminScreen() {
               <View style={styles.formGroup}>
   <Text style={styles.formLabel}>Rasm yuklash</Text>
 
-  <input
-    type="file"
-    accept="image/*"
-    onChange={async (e: any) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-
-      const fileName = `${Date.now()}-${file.name}`;
-
-      const { error } = await supabase.storage
-        .from("products")
-        .upload(fileName, file);
-
-      if (error) {
-        alert("Upload xato");
-        return;
-      }
-
-      const { data } = supabase.storage
-        .from("products")
-        .getPublicUrl(fileName);
-
-      setFormImage(data.publicUrl);
-    }}
-  />
+ 
 
   {formImage ? (
     <Image
