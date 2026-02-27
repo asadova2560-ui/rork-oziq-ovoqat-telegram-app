@@ -1,3 +1,4 @@
+import { supabase } from "@/lib/supabase";
 import React, { useState, useCallback, useMemo } from "react";
 import {
   View,
@@ -525,23 +526,42 @@ export default function AdminScreen() {
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Rasm URL</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={formImage}
-                  onChangeText={setFormImage}
-                  placeholder="https://..."
-                  placeholderTextColor={Colors.textLight}
-                  autoCapitalize="none"
-                />
-                {formImage ? (
-                  <Image
-                    source={{ uri: formImage }}
-                    style={styles.imagePreview}
-                    contentFit="cover"
-                  />
-                ) : null}
-              </View>
+  <Text style={styles.formLabel}>Rasm yuklash</Text>
+
+  <input
+    type="file"
+    accept="image/*"
+    onChange={async (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const fileName = `${Date.now()}-${file.name}`;
+
+      const { error } = await supabase.storage
+        .from("products")
+        .upload(fileName, file);
+
+      if (error) {
+        alert("Upload xato");
+        return;
+      }
+
+      const { data } = supabase.storage
+        .from("products")
+        .getPublicUrl(fileName);
+
+      setFormImage(data.publicUrl);
+    }}
+  />
+
+  {formImage ? (
+    <Image
+      source={{ uri: formImage }}
+      style={styles.imagePreview}
+      contentFit="cover"
+    />
+  ) : null}
+</View>
 
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Tavsif</Text>
