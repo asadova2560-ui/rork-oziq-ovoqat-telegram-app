@@ -542,7 +542,7 @@ export default function AdminScreen() {
     const image = result.assets[0];
 
     const formData = new FormData();
-    formData.append("image", {
+    formData.append("file", {
       uri: image.uri,
       type: "image/jpeg",
       name: "photo.jpg",
