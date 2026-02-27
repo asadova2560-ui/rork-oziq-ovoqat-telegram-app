@@ -142,7 +142,7 @@ export default function AdminScreen() {
     setModalVisible(true);
   }, []);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!formNameUz.trim()) {
       Alert.alert("Xatolik", "Mahsulot nomini kiriting");
       return;
@@ -170,11 +170,8 @@ export default function AdminScreen() {
     };
 
     if (isAdding) {
-      addProduct({
-        ...productData,
-        id: Date.now().toString(),
-      });
-    } else if (editingProduct) {
+  await addProduct(productData);
+} else if (editingProduct) {
       updateProduct(editingProduct.id, productData);
     }
 
