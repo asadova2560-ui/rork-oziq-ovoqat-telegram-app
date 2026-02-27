@@ -16,6 +16,8 @@ export const [ProductsProvider, useProducts] = createContextHook(() => {
 
     if (!error && data) {
       setProducts(data);
+    } else {
+      console.log("FETCH PRODUCTS ERROR:", error);
     }
 
     setIsLoading(false);
@@ -29,6 +31,8 @@ export const [ProductsProvider, useProducts] = createContextHook(() => {
 
     if (!error && data) {
       setCategories(data);
+    } else {
+      console.log("FETCH CATEGORIES ERROR:", error);
     }
   };
 
@@ -37,16 +41,22 @@ export const [ProductsProvider, useProducts] = createContextHook(() => {
     fetchCategories();
   }, []);
 
-  // 🔥 ADD
-  const addProduct = useCallback(async (product: Product) => {
-    const { error } = await supabase
-      .from("products")
-      .insert([product]);
+  // 🔥 ADD (UUID ni Supabase o‘zi generatsiya qiladi)
+  const addProduct = useCallback(
+    async (product: Omit<Product, "id">) => {
+      const { error } = await supabase
+        .from("products")
+        .insert([product])
+        .select();
 
-    if (!error) {
-      fetchProducts();
-    }
-  }, []);
+      if (!error) {
+        fetchProducts();
+      } else {
+        console.log("ADD ERROR:", error);
+      }
+    },
+    []
+  );
 
   // 🔥 UPDATE
   const updateProduct = useCallback(
@@ -58,6 +68,8 @@ export const [ProductsProvider, useProducts] = createContextHook(() => {
 
       if (!error) {
         fetchProducts();
+      } else {
+        console.log("UPDATE ERROR:", error);
       }
     },
     []
@@ -72,6 +84,8 @@ export const [ProductsProvider, useProducts] = createContextHook(() => {
 
     if (!error) {
       fetchProducts();
+    } else {
+      console.log("DELETE ERROR:", error);
     }
   }, []);
 
