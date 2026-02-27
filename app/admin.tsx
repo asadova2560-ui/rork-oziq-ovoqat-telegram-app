@@ -529,7 +529,54 @@ export default function AdminScreen() {
               <View style={styles.formGroup}>
   <Text style={styles.formLabel}>Rasm yuklash</Text>
 
- 
+ <TouchableOpacity
+  style={styles.chip}
+  onPress={async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+    });
+
+    if (result.canceled) return;
+
+    const image = result.assets[0];
+
+    const formData = new FormData();
+    formData.append("image", {
+      uri: image.uri,
+      type: "image/jpeg",
+      name: "photo.jpg",
+    } as any);
+
+    try {
+      const res = await fetch(
+        "https://mini-app-upload-server.onrender.com/upload",
+        {
+          method: "POST",
+          body: formData,
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      const data = await res.json();
+      setFormImage(data.url);
+    } catch (e) {
+      Alert.alert("Upload xato");
+    }
+  }}
+>
+  <Text>Rasm tanlash</Text>
+</TouchableOpacity>
+
+{formImage ? (
+  <Image
+    source={{ uri: formImage }}
+    style={styles.imagePreview}
+    contentFit="cover"
+  />
+) : null}
 
   {formImage ? (
     <Image
