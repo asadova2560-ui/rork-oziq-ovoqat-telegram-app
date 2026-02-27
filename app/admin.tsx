@@ -143,57 +143,55 @@ export default function AdminScreen() {
   }, []);
 
   const handleSave = useCallback(async () => {
-    if (!formNameUz.trim()) {
-      Alert.alert("Xatolik", "Mahsulot nomini kiriting");
-      return;
-    }
-    if (!formPrice || Number(formPrice) <= 0) {
-      Alert.alert("Xatolik", "Narxni to'g'ri kiriting");
-      return;
-    }
+  if (!formNameUz.trim()) {
+    Alert.alert("Xatolik", "Mahsulot nomini kiriting");
+    return;
+  }
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  if (!formPrice || Number(formPrice) <= 0) {
+    Alert.alert("Xatolik", "Narxni to'g'ri kiriting");
+    return;
+  }
 
-    const productData: Omit<Product, "id"> = {
-      name: formName.trim() || formNameUz.trim(),
-      nameUz: formNameUz.trim(),
-      price: Number(formPrice),
-      oldPrice: formOldPrice ? Number(formOldPrice) : undefined,
-      unit: formUnit,
-      image: formImage || EMPTY_PRODUCT.image,
-      categoryId: formCategory,
-      description: formDescription.trim(),
-      rating: editingProduct?.rating ?? 4.5,
-      inStock: formInStock,
-      isFeatured: formIsFeatured,
-      isOnSale: formIsOnSale,
-    };
-if (isAdding) {
-  await addProduct(productData);
-} else if (editingProduct) {
-  await updateProduct(editingProduct.id, productData);
-}
-        }
-                                 
-    setModalVisible(false);
-  }, [
-    formName,
-    formNameUz,
-    formPrice,
-    formOldPrice,
-    formUnit,
-    formImage,
-    formCategory,
-    formDescription,
-    formInStock,
-    formIsFeatured,
-    formIsOnSale,
-    isAdding,
-    editingProduct,
-    addProduct,
-    updateProduct,
-  ]);
+  const productData = {
+    name: formName.trim() || formNameUz.trim(),
+    nameUz: formNameUz.trim(),
+    price: Number(formPrice),
+    oldPrice: formOldPrice ? Number(formOldPrice) : null,
+    unit: formUnit,
+    image: formImage,
+    categoryId: formCategory,
+    description: formDescription,
+    rating: editingProduct?.rating ?? 4.5,
+    inStock: formInStock,
+    isFeatured: formIsFeatured,
+    isOnSale: formIsOnSale,
+  };
 
+  if (isAdding) {
+    await addProduct(productData);
+  } else if (editingProduct) {
+    await updateProduct(editingProduct.id, productData);
+  }
+
+  setModalVisible(false);
+}, [
+  formName,
+  formNameUz,
+  formPrice,
+  formOldPrice,
+  formUnit,
+  formImage,
+  formCategory,
+  formDescription,
+  formInStock,
+  formIsFeatured,
+  formIsOnSale,
+  isAdding,
+  editingProduct,
+  addProduct,
+  updateProduct,
+]);
   const handleDelete = useCallback(
     (product: Product) => {
       Alert.alert(
