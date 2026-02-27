@@ -549,20 +549,21 @@ export default function AdminScreen() {
     } as any);
 
     try {
-  const res = await fetch(
-    "https://mini-app-upload-server.onrender.com/upload",
-    {
-      method: "POST",
-      body: formData,
+      const res = await fetch(
+        "https://mini-app-upload-server.onrender.com/upload",
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      const data = await res.json();
+      setFormImage(data.url);
+    } catch (e) {
+      Alert.alert("Upload xato");
     }
-  );
-
-  const data = await res.json();
-  setFormImage(data.url);
-
-} catch (e) {
-  Alert.alert("Upload xato");
-}  
+  }}
+>
   <Text>Rasm tanlash</Text>
 </TouchableOpacity>
 
