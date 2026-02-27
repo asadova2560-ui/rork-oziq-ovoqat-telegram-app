@@ -550,12 +550,12 @@ export default function AdminScreen() {
 
     try {
       const res = await fetch(
-        "https://mini-app-upload-server.onrender.com/upload",
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
+  "https://mini-app-upload-server.onrender.com/upload",
+  {
+    method: "POST",
+    body: formData,
+  }
+);
 
       const data = await res.json();
       setFormImage(data.url);
