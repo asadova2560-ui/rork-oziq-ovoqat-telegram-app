@@ -1,5 +1,3 @@
-import * as ImagePicker from "expo-image-picker";
-import { supabase } from "@/lib/supabase";
 import React, { useState, useCallback, useMemo } from "react";
 import {
   View,
@@ -527,62 +525,23 @@ export default function AdminScreen() {
               </View>
 
               <View style={styles.formGroup}>
-  <Text style={styles.formLabel}>Rasm yuklash</Text>
-
- <TouchableOpacity
-  style={styles.chip}
-  onPress={async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
-    });
-
-    if (result.canceled) return;
-
-    const image = result.assets[0];
-
-    const formData = new FormData();
-    formData.append("file", {
-      uri: image.uri,
-      type: "image/jpeg",
-      name: "photo.jpg",
-    } as any);
-
-    try {
-      const res = await fetch(
-  "https://mini-app-upload-server.onrender.com/upload",
-  {
-    method: "POST",
-    body: formData,
-  }
-);
-
-      const data = await res.json();
-      setFormImage(data.url);
-    } catch (e) {
-      Alert.alert("Upload xato");
-    }
-  }}
->
-  <Text>Rasm tanlash</Text>
-</TouchableOpacity>
-
-{formImage ? (
-  <Image
-    source={{ uri: formImage }}
-    style={styles.imagePreview}
-    contentFit="cover"
-  />
-) : null}
-
-  {formImage ? (
-    <Image
-      source={{ uri: formImage }}
-      style={styles.imagePreview}
-      contentFit="cover"
-    />
-  ) : null}
-</View>
+                <Text style={styles.formLabel}>Rasm URL</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={formImage}
+                  onChangeText={setFormImage}
+                  placeholder="https://..."
+                  placeholderTextColor={Colors.textLight}
+                  autoCapitalize="none"
+                />
+                {formImage ? (
+                  <Image
+                    source={{ uri: formImage }}
+                    style={styles.imagePreview}
+                    contentFit="cover"
+                  />
+                ) : null}
+              </View>
 
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Tavsif</Text>
