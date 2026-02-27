@@ -12,38 +12,46 @@ export const [ProductsProvider, useProducts] = createContextHook(() => {
   // FETCH PRODUCTS
   // ==============================
   const fetchProducts = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("products")
-      .select("*")
-      .order("created_at", { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-    if (error) {
-      console.log("FETCH PRODUCTS ERROR:", error);
-      return;
+      if (error) {
+        console.log("FETCH PRODUCTS ERROR:", error);
+        return;
+      }
+
+      if (data) {
+        setProducts(data);
+      }
+    } catch (err) {
+      console.log("FETCH PRODUCTS CRASH:", err);
+    } finally {
+      setIsLoading(false);
     }
-
-    if (data) {
-      setProducts(data);
-    }
-
-    setIsLoading(false);
   }, []);
 
   // ==============================
   // FETCH CATEGORIES
   // ==============================
   const fetchCategories = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("categories")
-      .select("*");
+    try {
+      const { data, error } = await supabase
+        .from("categories")
+        .select("*");
 
-    if (error) {
-      console.log("FETCH CATEGORIES ERROR:", error);
-      return;
-    }
+      if (error) {
+        console.log("FETCH CATEGORIES ERROR:", error);
+        return;
+      }
 
-    if (data) {
-      setCategories(data);
+      if (data) {
+        setCategories(data);
+      }
+    } catch (err) {
+      console.log("FETCH CATEGORIES CRASH:", err);
     }
   }, []);
 
@@ -57,19 +65,24 @@ export const [ProductsProvider, useProducts] = createContextHook(() => {
   // ==============================
   const addProduct = useCallback(
     async (product: Omit<Product, "id">) => {
-      const { data, error } = await supabase
-        .from("products")
-        .insert([product])
-        .select();
+      try {
+        const { data, error } = await supabase
+          .from("products")
+          .insert([product])
+          .select();
 
-      if (error) {
-        console.log("ADD ERROR:", error);
-        alert("Xatolik: " + error.message);
-        return;
-      }
+        if (error) {
+          console.log("ADD ERROR:", error);
+          alert("Xatolik: " + error.message);
+          return;
+        }
 
-      if (data) {
-        setProducts((prev) => [...data, ...prev]);
+        if (data && data.length > 0) {
+          setProducts((prev) => [data[0], ...prev]);
+        }
+      } catch (err) {
+        console.log("ADD CRASH:", err);
+        alert("Server yoki internet xatosi");
       }
     },
     []
@@ -80,22 +93,27 @@ export const [ProductsProvider, useProducts] = createContextHook(() => {
   // ==============================
   const updateProduct = useCallback(
     async (productId: string, updates: Partial<Product>) => {
-      const { data, error } = await supabase
-        .from("products")
-        .update(updates)
-        .eq("id", productId)
-        .select();
+      try {
+        const { data, error } = await supabase
+          .from("products")
+          .update(updates)
+          .eq("id", productId)
+          .select();
 
-      if (error) {
-        console.log("UPDATE ERROR:", error);
-        alert("Xatolik: " + error.message);
-        return;
-      }
+        if (error) {
+          console.log("UPDATE ERROR:", error);
+          alert("Xatolik: " + error.message);
+          return;
+        }
 
-      if (data) {
-        setProducts((prev) =>
-          prev.map((p) => (p.id === productId ? data[0] : p))
-        );
+        if (data && data.length > 0) {
+          setProducts((prev) =>
+            prev.map((p) => (p.id === productId ? data[0] : p))
+          );
+        }
+      } catch (err) {
+        console.log("UPDATE CRASH:", err);
+        alert("Server yoki internet xatosi");
       }
     },
     []
@@ -105,18 +123,23 @@ export const [ProductsProvider, useProducts] = createContextHook(() => {
   // DELETE PRODUCT
   // ==============================
   const deleteProduct = useCallback(async (productId: string) => {
-    const { error } = await supabase
-      .from("products")
-      .delete()
-      .eq("id", productId);
+    try {
+      const { error } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", productId);
 
-    if (error) {
-      console.log("DELETE ERROR:", error);
-      alert("Xatolik: " + error.message);
-      return;
+      if (error) {
+        console.log("DELETE ERROR:", error);
+        alert("Xatolik: " + error.message);
+        return;
+      }
+
+      setProducts((prev) => prev.filter((p) => p.id !== productId));
+    } catch (err) {
+      console.log("DELETE CRASH:", err);
+      alert("Server yoki internet xatosi");
     }
-
-    setProducts((prev) => prev.filter((p) => p.id !== productId));
   }, []);
 
   // ==============================
