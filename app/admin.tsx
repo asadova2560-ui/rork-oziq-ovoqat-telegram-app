@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -28,12 +29,14 @@ import {
   ShieldCheck,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import Colors from "@/constants/colors";
 import { useProducts } from "@/context/ProductsContext";
 import { Product } from "@/types/product";
 import { formatPrice } from "@/utils/formatPrice";
 import { ADMIN_PIN } from "@/constants/config";
 import { CategoryIcon } from "@/components/CategoryIcon";
+import { supabase } from "@/lib/supabase";
 
 const EMPTY_PRODUCT: Omit<Product, "id"> = {
   name: "",
@@ -67,6 +70,7 @@ export default function AdminScreen() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isAdding, setIsAdding] = useState<boolean>(false);
   const [modalVisible, setModalVisible] = useState<boolean>(false);
+  const [imageUploading, setImageUploading] = useState<boolean>(false);
 
   const [formName, setFormName] = useState<string>("");
   const [formNameUz, setFormNameUz] = useState<string>("");
@@ -142,56 +146,96 @@ export default function AdminScreen() {
     setModalVisible(true);
   }, []);
 
+  const handlePickImage = useCallback(async () => {
+    const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!granted) {
+      Alert.alert("Ruxsat kerak", "Galereyaga kirish uchun ruxsat bering");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      const uri = result.assets[0].uri;
+      setImageUploading(true);
+      try {
+        const fileName = `product_${Date.now()}.jpg`;
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        const arrayBuffer = await blob.arrayBuffer();
+        const { error } = await supabase.storage
+          .from("Mini app")
+          .upload(fileName, arrayBuffer, { contentType: "image/jpeg", upsert: true });
+        if (error) {
+          Alert.alert("Xatolik", "Rasm yuklanmadi: " + error.message);
+          return;
+        }
+        const { data: urlData } = supabase.storage
+          .from("Mini app")
+          .getPublicUrl(fileName);
+        setFormImage(urlData.publicUrl);
+      } catch (e) {
+        Alert.alert("Xatolik", "Rasm yuklanmadi, qaytadan urinib ko'ring");
+      } finally {
+        setImageUploading(false);
+      }
+    }
+  }, []);
+
   const handleSave = useCallback(async () => {
-  if (!formNameUz.trim()) {
-    Alert.alert("Xatolik", "Mahsulot nomini kiriting");
-    return;
-  }
+    if (!formNameUz.trim()) {
+      Alert.alert("Xatolik", "Mahsulot nomini kiriting");
+      return;
+    }
 
-  if (!formPrice || Number(formPrice) <= 0) {
-    Alert.alert("Xatolik", "Narxni to'g'ri kiriting");
-    return;
-  }
+    if (!formPrice || Number(formPrice) <= 0) {
+      Alert.alert("Xatolik", "Narxni to'g'ri kiriting");
+      return;
+    }
 
-  const productData = {
-    name: formName.trim() || formNameUz.trim(),
-    nameUz: formNameUz.trim(),
-    price: Number(formPrice),
-    oldPrice: formOldPrice ? Number(formOldPrice) : null,
-    unit: formUnit,
-    image: formImage,
-    categoryId: formCategory,
-    description: formDescription,
-    rating: editingProduct?.rating ?? 4.5,
-    inStock: formInStock,
-    isFeatured: formIsFeatured,
-    isOnSale: formIsOnSale,
-  };
+    const productData = {
+      name: formName.trim() || formNameUz.trim(),
+      nameUz: formNameUz.trim(),
+      price: Number(formPrice),
+      oldPrice: formOldPrice ? Number(formOldPrice) : null,
+      unit: formUnit,
+      image: formImage,
+      categoryId: formCategory,
+      description: formDescription,
+      rating: editingProduct?.rating ?? 4.5,
+      inStock: formInStock,
+      isFeatured: formIsFeatured,
+      isOnSale: formIsOnSale,
+    };
 
-  if (isAdding) {
-    await addProduct(productData);
-  } else if (editingProduct) {
-    await updateProduct(editingProduct.id, productData);
-  }
+    if (isAdding) {
+      await addProduct(productData);
+    } else if (editingProduct) {
+      await updateProduct(editingProduct.id, productData);
+    }
 
-  setModalVisible(false);
-}, [
-  formName,
-  formNameUz,
-  formPrice,
-  formOldPrice,
-  formUnit,
-  formImage,
-  formCategory,
-  formDescription,
-  formInStock,
-  formIsFeatured,
-  formIsOnSale,
-  isAdding,
-  editingProduct,
-  addProduct,
-  updateProduct,
-]);
+    setModalVisible(false);
+  }, [
+    formName,
+    formNameUz,
+    formPrice,
+    formOldPrice,
+    formUnit,
+    formImage,
+    formCategory,
+    formDescription,
+    formInStock,
+    formIsFeatured,
+    formIsOnSale,
+    isAdding,
+    editingProduct,
+    addProduct,
+    updateProduct,
+  ]);
+
   const handleDelete = useCallback(
     (product: Product) => {
       Alert.alert(
@@ -524,16 +568,26 @@ export default function AdminScreen() {
                 </View>
               </View>
 
+              {/* RASM - Galereyadan tanlash */}
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Rasm URL</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={formImage}
-                  onChangeText={setFormImage}
-                  placeholder="https://..."
-                  placeholderTextColor={Colors.textLight}
-                  autoCapitalize="none"
-                />
+                <Text style={styles.formLabel}>Rasm</Text>
+                <TouchableOpacity
+                  style={[styles.imagePickerBtn, imageUploading && { opacity: 0.6 }]}
+                  onPress={handlePickImage}
+                  disabled={imageUploading}
+                >
+                  {imageUploading ? (
+                    <>
+                      <ActivityIndicator size="small" color={Colors.primary} />
+                      <Text style={styles.imagePickerText}>Yuklanmoqda...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <ImageIcon size={18} color={Colors.primary} />
+                      <Text style={styles.imagePickerText}>Galereyadan tanlash</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
                 {formImage ? (
                   <Image
                     source={{ uri: formImage }}
@@ -960,6 +1014,22 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: Colors.white,
+  },
+  imagePickerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  imagePickerText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.primary,
   },
   imagePreview: {
     width: "100%",
