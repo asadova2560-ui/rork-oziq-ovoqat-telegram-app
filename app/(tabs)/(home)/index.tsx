@@ -1,6 +1,7 @@
 import React, {
   useState, useMemo, useCallback, useRef, useEffect,
 } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
   TouchableOpacity, FlatList, Dimensions, Animated,
@@ -89,18 +90,54 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [hasNotif, setHasNotif] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [banners, setBanners] = useState(BANNERS);
+
+  // Admin paneldan o'zgartirilgan bannerlarni yuklash
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.getItem("admin_banners").then((data) => {
+        if (data) {
+          try {
+            const parsed = JSON.parse(data);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              // admin_banners field nomlarini index.tsx formatiga moslashtirish
+              const mapped = parsed.map((b: any) => ({
+                id: b.id,
+                title: b.title,
+                subtitle: b.subtitle,
+                btnLabel: b.btnLabel,
+                bgColor: b.bg,
+                titleColor: b.titleColor,
+                subtitleColor: b.subtitleColor,
+                btnBg: b.btnBg,
+                btnTextColor: b.btnColor,
+                imageUrl: b.image,
+              }));
+              setBanners(mapped);
+            } else {
+              setBanners(BANNERS);
+            }
+          } catch {
+            setBanners(BANNERS);
+          }
+        } else {
+          setBanners(BANNERS);
+        }
+      });
+    }, [])
+  );
 
   const { products, categories, featuredProducts, saleProducts } = useProducts();
 
   // Auto-scroll
   useEffect(() => {
     const id = setInterval(() => {
-      const next = currentIndex === BANNERS.length - 1 ? 0 : currentIndex + 1;
+      const next = currentIndex === banners.length - 1 ? 0 : currentIndex + 1;
       flatListRef.current?.scrollToIndex({ index: next, animated: true });
       setCurrentIndex(next);
     }, 4000);
     return () => clearInterval(id);
-  }, [currentIndex]);
+  }, [currentIndex, banners.length]);
 
   // Notifications
   useEffect(() => {
@@ -150,7 +187,7 @@ export default function HomeScreen() {
   // Dot indicators
   const Dots = () => (
     <View style={s.dotsRow}>
-      {BANNERS.map((_, i) => {
+      {banners.map((_, i) => {
         const w = scrollX.interpolate({
           inputRange: [(i - 1) * SNAP, i * SNAP, (i + 1) * SNAP],
           outputRange: [6, 22, 6],
@@ -257,7 +294,7 @@ export default function HomeScreen() {
           <View style={s.bannerWrap}>
             <Animated.FlatList
               ref={flatListRef}
-              data={BANNERS}
+              data={banners}
               horizontal
               snapToInterval={SNAP}
               snapToAlignment="start"
