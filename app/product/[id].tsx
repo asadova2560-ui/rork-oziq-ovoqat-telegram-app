@@ -23,6 +23,7 @@ import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useCart } from "@/context/CartContext";
 import { useProducts } from "@/context/ProductsContext";
+import { useFavorites } from "@/context/FavoritesContext";
 import { formatPrice } from "@/utils/formatPrice";
 import { CategoryIcon } from "@/components/CategoryIcon";
 
@@ -34,7 +35,9 @@ export default function ProductDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { addToCart, getItemQuantity, updateQuantity } = useCart();
   const { getProductById, categories } = useProducts();
+  const { favorites, addToFavorites, removeFromFavorites } = useFavorites();
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const heartAnim = useRef(new Animated.Value(1)).current;
 
   const product = useMemo(
     () => getProductById(id ?? ""),
@@ -49,11 +52,18 @@ export default function ProductDetailScreen() {
   const isWeightBased = product?.unit === "kg";
   const [selectedWeight, setSelectedWeight] = useState<number>(1000);
 
-  const quantity = product ? getItemQuantity(product.id, isWeightBased ? selectedWeight : undefined) : 0;
+  const isFavorite = useMemo(
+    () => favorites.some((f) => f.id === product?.id),
+    [favorites, product?.id]
+  );
+
+  const quantity = product
+    ? getItemQuantity(product.id, isWeightBased ? selectedWeight : undefined)
+    : 0;
 
   const weightPrice = useMemo(() => {
     if (!product || !isWeightBased) return product?.price ?? 0;
-    return Math.round(product.price * selectedWeight / 1000);
+    return Math.round((product.price * selectedWeight) / 1000);
   }, [product, isWeightBased, selectedWeight]);
 
   const handleSelectWeight = useCallback((grams: number) => {
@@ -65,6 +75,28 @@ export default function ProductDetailScreen() {
     if (grams >= 1000) return `${grams / 1000} kg`;
     return `${grams} g`;
   }, []);
+
+  const handleToggleFavorite = useCallback(() => {
+    if (!product) return;
+    Animated.sequence([
+      Animated.timing(heartAnim, {
+        toValue: 1.3,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+      Animated.timing(heartAnim, {
+        toValue: 1,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (isFavorite) {
+      removeFromFavorites(product.id);
+    } else {
+      addToFavorites(product);
+    }
+  }, [product, isFavorite, addToFavorites, removeFromFavorites, heartAnim]);
 
   const handleAddToCart = useCallback(() => {
     if (!product) return;
@@ -84,18 +116,26 @@ export default function ProductDetailScreen() {
     addToCart(product, isWeightBased ? selectedWeight : undefined);
   }, [product, addToCart, scaleAnim, isWeightBased, selectedWeight]);
 
-  const handleUpdateQuantity = useCallback((newQty: number) => {
-    if (!product) return;
-    const cartKey = isWeightBased ? `${product.id}_${selectedWeight}` : product.id;
-    updateQuantity(cartKey, newQty);
-  }, [product, updateQuantity, isWeightBased, selectedWeight]);
+  const handleUpdateQuantity = useCallback(
+    (newQty: number) => {
+      if (!product) return;
+      const cartKey = isWeightBased
+        ? `${product.id}_${selectedWeight}`
+        : product.id;
+      updateQuantity(cartKey, newQty);
+    },
+    [product, updateQuantity, isWeightBased, selectedWeight]
+  );
 
   if (!product) {
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Mahsulot topilmadi</Text>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
             <Text style={styles.backButtonText}>Orqaga</Text>
           </TouchableOpacity>
         </View>
@@ -104,7 +144,9 @@ export default function ProductDetailScreen() {
   }
 
   const discount = product.oldPrice
-    ? Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)
+    ? Math.round(
+        ((product.oldPrice - product.price) / product.oldPrice) * 100
+      )
     : 0;
 
   return (
@@ -123,9 +165,18 @@ export default function ProductDetailScreen() {
             >
               <ArrowLeft size={22} color={Colors.text} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.topBtn}>
-              <Heart size={22} color={Colors.text} />
-            </TouchableOpacity>
+            <Animated.View style={{ transform: [{ scale: heartAnim }] }}>
+              <TouchableOpacity
+                style={styles.topBtn}
+                onPress={handleToggleFavorite}
+              >
+                <Heart
+                  size={22}
+                  color={isFavorite ? "#EF4444" : Colors.text}
+                  fill={isFavorite ? "#EF4444" : "transparent"}
+                />
+              </TouchableOpacity>
+            </Animated.View>
           </View>
           {product.isOnSale && discount > 0 && (
             <View style={styles.discountBadge}>
@@ -136,8 +187,17 @@ export default function ProductDetailScreen() {
 
         <View style={styles.content}>
           {category && (
-            <View style={[styles.categoryTag, { backgroundColor: category.color + "20" }]}>
-              <CategoryIcon name={category.icon} size={14} color={category.color} />
+            <View
+              style={[
+                styles.categoryTag,
+                { backgroundColor: category.color + "20" },
+              ]}
+            >
+              <CategoryIcon
+                name={category.icon}
+                size={14}
+                color={category.color}
+              />
               <Text style={[styles.categoryName, { color: category.color }]}>
                 {category.nameUz}
               </Text>
@@ -154,7 +214,9 @@ export default function ProductDetailScreen() {
 
           <View style={styles.priceRow}>
             <Text style={styles.price}>
-              {isWeightBased ? formatPrice(weightPrice) : formatPrice(product.price)}
+              {isWeightBased
+                ? formatPrice(weightPrice)
+                : formatPrice(product.price)}
             </Text>
             {product.oldPrice && !isWeightBased && (
               <Text style={styles.oldPrice}>
@@ -162,7 +224,8 @@ export default function ProductDetailScreen() {
               </Text>
             )}
             <Text style={styles.unit}>
-              / {isWeightBased ? formatWeight(selectedWeight) : product.unit}
+              /{" "}
+              {isWeightBased ? formatWeight(selectedWeight) : product.unit}
             </Text>
           </View>
 
@@ -180,7 +243,9 @@ export default function ProductDetailScreen() {
                 <View style={styles.weightGrid}>
                   {WEIGHT_OPTIONS.map((grams) => {
                     const isSelected = selectedWeight === grams;
-                    const itemPrice = Math.round(product.price * grams / 1000);
+                    const itemPrice = Math.round(
+                      (product.price * grams) / 1000
+                    );
                     return (
                       <TouchableOpacity
                         key={grams}
@@ -226,7 +291,9 @@ export default function ProductDetailScreen() {
               <Text
                 style={[
                   styles.infoValue,
-                  { color: product.inStock ? Colors.success : Colors.danger },
+                  {
+                    color: product.inStock ? Colors.success : Colors.danger,
+                  },
                 ]}
               >
                 {product.inStock ? "Mavjud" : "Tugagan"}
@@ -269,7 +336,9 @@ export default function ProductDetailScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.footerTotal}>
-              {formatPrice((isWeightBased ? weightPrice : product.price) * quantity)}
+              {formatPrice(
+                (isWeightBased ? weightPrice : product.price) * quantity
+              )}
             </Text>
           </View>
         ) : (
