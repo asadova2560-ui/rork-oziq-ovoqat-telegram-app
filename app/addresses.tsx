@@ -9,7 +9,7 @@ import { ArrowLeft, Plus, MapPin, Trash2, Navigation, X } from "lucide-react-nat
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { useAddresses } from "@/context/AddressesContext";
+import { useAddresses } from "@/context/AddressContext";
 
 export default function AddressesScreen() {
   const insets = useSafeAreaInsets();
