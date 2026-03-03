@@ -13,6 +13,7 @@ import {
   Animated,
   ActivityIndicator,
   Linking,
+  Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -27,6 +28,8 @@ import {
   CheckCircle,
   Navigation,
   ExternalLink,
+  BookMarked,
+  X,
 } from "lucide-react-native";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
@@ -34,6 +37,7 @@ import { useMutation } from "@tanstack/react-query";
 import Colors from "@/constants/colors";
 import { useCart } from "@/context/CartContext";
 import { useOrders } from "@/context/OrdersContext";
+import { useAddresses } from "@/context/AddressContext";
 import { formatPrice } from "@/utils/formatPrice";
 import { sendTelegramMessage, formatOrderMessage } from "@/utils/telegram";
 import { PAYMENT_CARD_NUMBER } from "@/constants/config";
@@ -52,6 +56,7 @@ export default function CheckoutScreen() {
   const router = useRouter();
   const { items, totalPrice, clearCart, getItemPrice } = useCart();
   const { addOrder } = useOrders();
+  const { addresses } = useAddresses();
 
   const [phone, setPhone] = useState<string>("+998 ");
   const [address, setAddress] = useState<string>("");
@@ -61,6 +66,7 @@ export default function CheckoutScreen() {
   const [note, setNote] = useState<string>("");
   const [locationLoading, setLocationLoading] = useState<boolean>(false);
   const [orderSuccess, setOrderSuccess] = useState<boolean>(false);
+  const [showAddressPicker, setShowAddressPicker] = useState<boolean>(false);
 
   const successAnim = useRef(new Animated.Value(0)).current;
 
@@ -111,40 +117,37 @@ export default function CheckoutScreen() {
       return orderId;
     },
     onSuccess: async () => {
-
-  addOrder({
-    id: Date.now().toString(),
-    date: new Date().toISOString(),
-    phone,
-    address,
-    paymentMethod,
-    total: totalPrice,
-    items: items.map(item => ({
-      name: item.product.nameUz,
-      quantity: item.quantity,
-      price: item.product.price,
-    })),
-    status: "Yangi",
-  });
-
-  await AsyncStorage.setItem(
-    "notifications",
-    JSON.stringify([
-      {
+      addOrder({
         id: Date.now().toString(),
-        title: "Buyurtma qabul qilindi",
-        message: "Buyurtmangiz tez orada yetkaziladi",
         date: new Date().toISOString(),
-      },
-    ])
-  );
+        phone,
+        address,
+        paymentMethod,
+        total: totalPrice,
+        items: items.map(item => ({
+          name: item.product.nameUz,
+          quantity: item.quantity,
+          price: item.product.price,
+        })),
+        status: "Yangi",
+      });
 
-  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await AsyncStorage.setItem(
+        "notifications",
+        JSON.stringify([
+          {
+            id: Date.now().toString(),
+            title: "Buyurtma qabul qilindi",
+            message: "Buyurtmangiz tez orada yetkaziladi",
+            date: new Date().toISOString(),
+          },
+        ])
+      );
 
-  setOrderSuccess(true);
-
-  clearCart();
-},
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setOrderSuccess(true);
+      clearCart();
+    },
     onError: (error) => {
       console.error("Order error:", error);
       Alert.alert(
@@ -218,6 +221,14 @@ export default function CheckoutScreen() {
     } finally {
       setLocationLoading(false);
     }
+  }, []);
+
+  const handleSelectSavedAddress = useCallback((item: any) => {
+    setAddress(item.address);
+    if (item.latitude) setLatitude(item.latitude);
+    if (item.longitude) setLongitude(item.longitude);
+    setShowAddressPicker(false);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, []);
 
   const handleSubmit = useCallback(() => {
@@ -310,6 +321,19 @@ export default function CheckoutScreen() {
               <MapPin size={18} color={Colors.accent} />
               <Text style={styles.sectionTitle}>Yetkazib berish manzili</Text>
             </View>
+
+            {addresses.length > 0 && (
+              <TouchableOpacity
+                style={styles.savedAddressBtn}
+                onPress={() => setShowAddressPicker(true)}
+              >
+                <BookMarked size={16} color={Colors.primary} />
+                <Text style={styles.savedAddressBtnText}>
+                  Saqlangan manzillardan tanlash
+                </Text>
+              </TouchableOpacity>
+            )}
+
             <TextInput
               style={[styles.input, styles.addressInput]}
               value={address}
@@ -549,6 +573,40 @@ export default function CheckoutScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Saqlangan manzillar modal */}
+      <Modal
+        visible={showAddressPicker}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowAddressPicker(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Manzil tanlang</Text>
+            <TouchableOpacity onPress={() => setShowAddressPicker(false)}>
+              <X size={24} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={styles.modalContent}>
+            {addresses.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.addressPickerItem}
+                onPress={() => handleSelectSavedAddress(item)}
+              >
+                <View style={styles.addressPickerIcon}>
+                  <MapPin size={20} color={Colors.accent} />
+                </View>
+                <View style={styles.addressPickerInfo}>
+                  <Text style={styles.addressPickerTitle}>{item.title}</Text>
+                  <Text style={styles.addressPickerSubtitle}>{item.address}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -621,6 +679,21 @@ const styles = StyleSheet.create({
   noteInput: {
     minHeight: 80,
     textAlignVertical: "top",
+  },
+  savedAddressBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: Colors.primaryLight,
+    borderRadius: 12,
+  },
+  savedAddressBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.primary,
   },
   locationBtn: {
     flexDirection: "row",
@@ -868,5 +941,56 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: Colors.white,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: Colors.text,
+  },
+  modalContent: {
+    padding: 16,
+  },
+  addressPickerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.white,
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+    marginBottom: 8,
+  },
+  addressPickerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.surfaceSecondary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  addressPickerInfo: {
+    flex: 1,
+  },
+  addressPickerTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.text,
+  },
+  addressPickerSubtitle: {
+    fontSize: 13,
+    color: Colors.textSecondary,
   },
 });
