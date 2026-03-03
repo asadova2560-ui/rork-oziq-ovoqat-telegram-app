@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Linking,
-  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -64,7 +63,6 @@ export default function ProfileScreen() {
           <Text style={styles.title}>Profil</Text>
         </View>
 
-        {/* USER CARD */}
         <View style={styles.profileCard}>
           <View style={styles.avatar}>
             <User size={32} color={Colors.white} />
@@ -83,7 +81,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* ASOSIY */}
         <View style={styles.menuSection}>
           <Text style={styles.sectionLabel}>Asosiy</Text>
           <View style={styles.menuCard}>
@@ -114,7 +111,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* QO‘SHIMCHA */}
         <View style={styles.menuSection}>
           <Text style={styles.sectionLabel}>Qo'shimcha</Text>
           <View style={styles.menuCard}>
@@ -134,13 +130,13 @@ export default function ProfileScreen() {
               icon={<HelpCircle size={20} color="#8B5CF6" />}
               label="Yordam"
               subtitle="Ko'p so'raladigan savollar"
-              onPress={() => Alert.alert("Yordam", "Tez orada qo‘shiladi")}
+              onPress={() => router.push("/help")}
             />
             <MenuItem
               icon={<Settings size={20} color={Colors.textSecondary} />}
               label="Sozlamalar"
               subtitle="Tilni o'zgartirish va boshqalar"
-              onPress={() => Alert.alert("Sozlamalar", "Tez orada qo‘shiladi")}
+              onPress={() => router.push("/settings")}
             />
             <MenuItem
               icon={<Settings size={20} color="red" />}
