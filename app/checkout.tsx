@@ -106,21 +106,17 @@ export default function CheckoutScreen() {
       const { error: supabaseError } = await supabase.from("orders").insert({
         customer_name: phone.trim(),
         customer_phone: phone.trim(),
-        customer_address: address.trim(),
+        address: address.trim(),
         items: orderItems,
-        total: totalPrice,
+        total_price: totalPrice,
         status: "pending",
-        payment_method: paymentMethod === "cash"
-          ? "cash"
-          : paymentMethod === "card_transfer"
-          ? "card"
-          : "cash",
-        notes: note.trim() || null,
+        payment_method: paymentMethod === "card_transfer" ? "card" : "cash",
+        note: note.trim() || null,
+        is_fake: false,
       });
 
       if (supabaseError) {
-        console.error("Supabase error:", supabaseError);
-        // Supabase xato bo'lsa ham davom etamiz (Telegram yuborilsin)
+        console.error("Supabase xato:", supabaseError.message);
       }
       // ────────────────────────────────────────────────────────────────────
 
@@ -146,9 +142,7 @@ export default function CheckoutScreen() {
       });
 
       const sent = await sendTelegramMessage(message);
-      if (!sent) {
-        throw new Error("Telegram xabar yuborilmadi");
-      }
+      if (!sent) throw new Error("Telegram xabar yuborilmadi");
       return orderId;
     },
     onSuccess: async () => {
@@ -167,17 +161,12 @@ export default function CheckoutScreen() {
         status: "Yangi",
       });
 
-      await AsyncStorage.setItem(
-        "notifications",
-        JSON.stringify([
-          {
-            id: Date.now().toString(),
-            title: "Buyurtma qabul qilindi",
-            message: "Buyurtmangiz tez orada yetkaziladi",
-            date: new Date().toISOString(),
-          },
-        ])
-      );
+      await AsyncStorage.setItem("notifications", JSON.stringify([{
+        id: Date.now().toString(),
+        title: "Buyurtma qabul qilindi",
+        message: "Buyurtmangiz tez orada yetkaziladi",
+        date: new Date().toISOString(),
+      }]));
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setOrderSuccess(true);
@@ -185,10 +174,7 @@ export default function CheckoutScreen() {
     },
     onError: (error) => {
       console.error("Order error:", error);
-      Alert.alert(
-        "Xatolik",
-        "Buyurtma yuborishda xatolik yuz berdi. Qaytadan urinib ko'ring."
-      );
+      Alert.alert("Xatolik", "Buyurtma yuborishda xatolik yuz berdi. Qaytadan urinib ko'ring.");
     },
   });
 
@@ -201,16 +187,11 @@ export default function CheckoutScreen() {
             (position) => {
               setLatitude(position.coords.latitude);
               setLongitude(position.coords.longitude);
-              setAddress(
-                `Lokatsiya: ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`
-              );
+              setAddress(`Lokatsiya: ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`);
               setLocationLoading(false);
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             },
-            () => {
-              Alert.alert("Xatolik", "Geolokatsiyani aniqlash imkoni bo'lmadi");
-              setLocationLoading(false);
-            }
+            () => { Alert.alert("Xatolik", "Geolokatsiyani aniqlash imkoni bo'lmadi"); setLocationLoading(false); }
           );
           return;
         }
@@ -226,17 +207,12 @@ export default function CheckoutScreen() {
         return;
       }
 
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       setLatitude(loc.coords.latitude);
       setLongitude(loc.coords.longitude);
 
       try {
-        const [geo] = await Location.reverseGeocodeAsync({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-        });
+        const [geo] = await Location.reverseGeocodeAsync({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
         if (geo) {
           const parts = [geo.street, geo.district, geo.city].filter(Boolean);
           setAddress(parts.join(", ") || `${loc.coords.latitude.toFixed(4)}, ${loc.coords.longitude.toFixed(4)}`);
@@ -262,32 +238,19 @@ export default function CheckoutScreen() {
   }, []);
 
   const handleSubmit = useCallback(() => {
-    if (!phone.trim() || phone.trim().length < 9) {
-      Alert.alert("Xatolik", "Telefon raqamni to'g'ri kiriting");
-      return;
-    }
-    if (!address.trim()) {
-      Alert.alert("Xatolik", "Manzilni kiriting yoki lokatsiya yuboring");
-      return;
-    }
-    if (items.length === 0) {
-      Alert.alert("Xatolik", "Savatcha bo'sh");
-      return;
-    }
+    if (!phone.trim() || phone.trim().length < 9) { Alert.alert("Xatolik", "Telefon raqamni to'g'ri kiriting"); return; }
+    if (!address.trim()) { Alert.alert("Xatolik", "Manzilni kiriting yoki lokatsiya yuboring"); return; }
+    if (items.length === 0) { Alert.alert("Xatolik", "Savatcha bo'sh"); return; }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     orderMutation.mutate();
   }, [phone, address, items, orderMutation]);
 
   const formatPhoneInput = useCallback((text: string) => {
-    const cleaned = text.replace(/[^\d+\s]/g, "");
-    setPhone(cleaned);
+    setPhone(text.replace(/[^\d+\s]/g, ""));
   }, []);
 
   if (orderSuccess) {
-    const scale = successAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0.3, 1],
-    });
+    const scale = successAnim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] });
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.successContainer}>
@@ -295,13 +258,8 @@ export default function CheckoutScreen() {
             <CheckCircle size={80} color={Colors.primary} />
           </Animated.View>
           <Text style={styles.successTitle}>Buyurtma qabul qilindi!</Text>
-          <Text style={styles.successSubtext}>
-            Tez orada siz bilan bog'lanamiz va Yandex Go orqali yetkazib beramiz.
-          </Text>
-          <TouchableOpacity
-            style={styles.successBtn}
-            onPress={() => router.replace("/" as never)}
-          >
+          <Text style={styles.successSubtext}>Tez orada siz bilan bog'lanamiz va Yandex Go orqali yetkazib beramiz.</Text>
+          <TouchableOpacity style={styles.successBtn} onPress={() => router.replace("/" as never)}>
             <Text style={styles.successBtnText}>Bosh sahifaga</Text>
           </TouchableOpacity>
         </View>
@@ -319,27 +277,15 @@ export default function CheckoutScreen() {
         <View style={styles.backBtn} />
       </View>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.flex}
-      >
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-        >
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.flex}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Phone size={18} color={Colors.primary} />
               <Text style={styles.sectionTitle}>Telefon raqam</Text>
             </View>
-            <TextInput
-              style={styles.input}
-              value={phone}
-              onChangeText={formatPhoneInput}
-              placeholder="+998 90 123 45 67"
-              placeholderTextColor={Colors.textLight}
-              keyboardType="phone-pad"
-            />
+            <TextInput style={styles.input} value={phone} onChangeText={formatPhoneInput} placeholder="+998 90 123 45 67" placeholderTextColor={Colors.textLight} keyboardType="phone-pad" />
           </View>
 
           <View style={styles.section}>
@@ -347,42 +293,20 @@ export default function CheckoutScreen() {
               <MapPin size={18} color={Colors.accent} />
               <Text style={styles.sectionTitle}>Yetkazib berish manzili</Text>
             </View>
-
             {addresses.length > 0 && (
-              <TouchableOpacity
-                style={styles.savedAddressBtn}
-                onPress={() => setShowAddressPicker(true)}
-              >
+              <TouchableOpacity style={styles.savedAddressBtn} onPress={() => setShowAddressPicker(true)}>
                 <BookMarked size={16} color={Colors.primary} />
                 <Text style={styles.savedAddressBtnText}>Saqlangan manzillardan tanlash</Text>
               </TouchableOpacity>
             )}
-
-            <TextInput
-              style={[styles.input, styles.addressInput]}
-              value={address}
-              onChangeText={setAddress}
-              placeholder="Manzilni kiriting..."
-              placeholderTextColor={Colors.textLight}
-              multiline
-            />
-            <TouchableOpacity
-              style={styles.locationBtn}
-              onPress={handleGetLocation}
-              disabled={locationLoading}
-            >
-              {locationLoading ? (
-                <ActivityIndicator size="small" color={Colors.primary} />
-              ) : (
-                <Navigation size={18} color={Colors.primary} />
-              )}
+            <TextInput style={[styles.input, styles.addressInput]} value={address} onChangeText={setAddress} placeholder="Manzilni kiriting..." placeholderTextColor={Colors.textLight} multiline />
+            <TouchableOpacity style={styles.locationBtn} onPress={handleGetLocation} disabled={locationLoading}>
+              {locationLoading ? <ActivityIndicator size="small" color={Colors.primary} /> : <Navigation size={18} color={Colors.primary} />}
               <Text style={styles.locationBtnText}>
                 {locationLoading ? "Aniqlanmoqda..." : latitude ? "Lokatsiya aniqlandi ✓" : "Joriy lokatsiyani yuborish"}
               </Text>
             </TouchableOpacity>
-            {latitude && longitude && (
-              <Text style={styles.coordsText}>{latitude.toFixed(4)}, {longitude.toFixed(4)}</Text>
-            )}
+            {latitude && longitude && <Text style={styles.coordsText}>{latitude.toFixed(4)}, {longitude.toFixed(4)}</Text>}
           </View>
 
           <View style={styles.section}>
@@ -391,77 +315,45 @@ export default function CheckoutScreen() {
               <Text style={styles.sectionTitle}>To'lov usuli</Text>
             </View>
 
-            <TouchableOpacity
-              style={[styles.paymentOption, paymentMethod === "cash" && styles.paymentOptionActive]}
-              onPress={() => setPaymentMethod("cash")}
-            >
-              <View style={[styles.paymentIconBox, { backgroundColor: "#E8F5EE" }]}>
-                <Banknote size={20} color={Colors.primary} />
-              </View>
-              <View style={styles.paymentContent}>
-                <Text style={styles.paymentLabel}>Naqd pul</Text>
-                <Text style={styles.paymentDesc}>Yetkazib berganda naqd to'lov</Text>
-              </View>
-              <View style={[styles.radio, paymentMethod === "cash" && styles.radioActive]}>
-                {paymentMethod === "cash" && <View style={styles.radioInner} />}
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.paymentOption, paymentMethod === "card_transfer" && styles.paymentOptionActive]}
-              onPress={() => setPaymentMethod("card_transfer")}
-            >
-              <View style={[styles.paymentIconBox, { backgroundColor: "#EEF2FF" }]}>
-                <CreditCard size={20} color="#6366F1" />
-              </View>
-              <View style={styles.paymentContent}>
-                <Text style={styles.paymentLabel}>Karta orqali to'lash</Text>
-                <Text style={styles.paymentDesc}>Click, Payme yoki Paynet orqali</Text>
-              </View>
-              <View style={[styles.radio, paymentMethod === "card_transfer" && styles.radioActive]}>
-                {paymentMethod === "card_transfer" && <View style={styles.radioInner} />}
-              </View>
-            </TouchableOpacity>
-
-            {paymentMethod === "card_transfer" && (
-              <View style={styles.cardProvidersSection}>
-                <Text style={styles.cardProviderHint}>To'lov tizimini tanlang:</Text>
-                <View style={styles.cardProvidersRow}>
-                  {CARD_PROVIDERS.map((provider) => (
-                    <TouchableOpacity
-                      key={provider.id}
-                      style={[styles.cardProviderBtn, { borderColor: provider.color }]}
-                      onPress={() => handleOpenCardProvider(provider.id)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.cardProviderDot, { backgroundColor: provider.color }]} />
-                      <Text style={[styles.cardProviderName, { color: provider.color }]}>{provider.name}</Text>
-                      <ExternalLink size={14} color={provider.color} />
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <View style={styles.cardNumberBox}>
-                  <Text style={styles.cardNumberLabel}>Karta raqam:</Text>
-                  <Text style={styles.cardNumberValue}>{PAYMENT_CARD_NUMBER}</Text>
-                </View>
-              </View>
-            )}
-
-            <TouchableOpacity
-              style={[styles.paymentOption, paymentMethod === "on_delivery" && styles.paymentOptionActive]}
-              onPress={() => setPaymentMethod("on_delivery")}
-            >
-              <View style={[styles.paymentIconBox, { backgroundColor: "#FFF0EA" }]}>
-                <Truck size={20} color={Colors.accent} />
-              </View>
-              <View style={styles.paymentContent}>
-                <Text style={styles.paymentLabel}>Yetkazib berganda</Text>
-                <Text style={styles.paymentDesc}>Naqd yoki karta bilan to'lov</Text>
-              </View>
-              <View style={[styles.radio, paymentMethod === "on_delivery" && styles.radioActive]}>
-                {paymentMethod === "on_delivery" && <View style={styles.radioInner} />}
-              </View>
-            </TouchableOpacity>
+            {(["cash", "card_transfer", "on_delivery"] as PaymentMethod[]).map((pm) => {
+              const config = {
+                cash: { icon: <Banknote size={20} color={Colors.primary} />, bg: "#E8F5EE", label: "Naqd pul", desc: "Yetkazib berganda naqd to'lov" },
+                card_transfer: { icon: <CreditCard size={20} color="#6366F1" />, bg: "#EEF2FF", label: "Karta orqali to'lash", desc: "Click, Payme yoki Paynet orqali" },
+                on_delivery: { icon: <Truck size={20} color={Colors.accent} />, bg: "#FFF0EA", label: "Yetkazib berganda", desc: "Naqd yoki karta bilan to'lov" },
+              }[pm];
+              return (
+                <React.Fragment key={pm}>
+                  <TouchableOpacity style={[styles.paymentOption, paymentMethod === pm && styles.paymentOptionActive]} onPress={() => setPaymentMethod(pm)}>
+                    <View style={[styles.paymentIconBox, { backgroundColor: config.bg }]}>{config.icon}</View>
+                    <View style={styles.paymentContent}>
+                      <Text style={styles.paymentLabel}>{config.label}</Text>
+                      <Text style={styles.paymentDesc}>{config.desc}</Text>
+                    </View>
+                    <View style={[styles.radio, paymentMethod === pm && styles.radioActive]}>
+                      {paymentMethod === pm && <View style={styles.radioInner} />}
+                    </View>
+                  </TouchableOpacity>
+                  {pm === "card_transfer" && paymentMethod === "card_transfer" && (
+                    <View style={styles.cardProvidersSection}>
+                      <Text style={styles.cardProviderHint}>To'lov tizimini tanlang:</Text>
+                      <View style={styles.cardProvidersRow}>
+                        {CARD_PROVIDERS.map((provider) => (
+                          <TouchableOpacity key={provider.id} style={[styles.cardProviderBtn, { borderColor: provider.color }]} onPress={() => handleOpenCardProvider(provider.id)} activeOpacity={0.7}>
+                            <View style={[styles.cardProviderDot, { backgroundColor: provider.color }]} />
+                            <Text style={[styles.cardProviderName, { color: provider.color }]}>{provider.name}</Text>
+                            <ExternalLink size={14} color={provider.color} />
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                      <View style={styles.cardNumberBox}>
+                        <Text style={styles.cardNumberLabel}>Karta raqam:</Text>
+                        <Text style={styles.cardNumberValue}>{PAYMENT_CARD_NUMBER}</Text>
+                      </View>
+                    </View>
+                  )}
+                </React.Fragment>
+              );
+            })}
           </View>
 
           <View style={styles.section}>
@@ -469,14 +361,7 @@ export default function CheckoutScreen() {
               <FileText size={18} color={Colors.textSecondary} />
               <Text style={styles.sectionTitle}>Izoh (ixtiyoriy)</Text>
             </View>
-            <TextInput
-              style={[styles.input, styles.noteInput]}
-              value={note}
-              onChangeText={setNote}
-              placeholder="Qo'shimcha ma'lumot..."
-              placeholderTextColor={Colors.textLight}
-              multiline
-            />
+            <TextInput style={[styles.input, styles.noteInput]} value={note} onChangeText={setNote} placeholder="Qo'shimcha ma'lumot..." placeholderTextColor={Colors.textLight} multiline />
           </View>
 
           <View style={styles.summaryCard}>
@@ -510,43 +395,23 @@ export default function CheckoutScreen() {
       </KeyboardAvoidingView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-        <TouchableOpacity
-          style={[styles.submitBtn, orderMutation.isPending && styles.submitBtnDisabled]}
-          onPress={handleSubmit}
-          disabled={orderMutation.isPending}
-          activeOpacity={0.8}
-        >
-          {orderMutation.isPending ? (
-            <ActivityIndicator size="small" color={Colors.white} />
-          ) : (
-            <Text style={styles.submitBtnText}>Buyurtma berish — {formatPrice(totalPrice)}</Text>
-          )}
+        <TouchableOpacity style={[styles.submitBtn, orderMutation.isPending && styles.submitBtnDisabled]} onPress={handleSubmit} disabled={orderMutation.isPending} activeOpacity={0.8}>
+          {orderMutation.isPending
+            ? <ActivityIndicator size="small" color={Colors.white} />
+            : <Text style={styles.submitBtnText}>Buyurtma berish — {formatPrice(totalPrice)}</Text>}
         </TouchableOpacity>
       </View>
 
-      <Modal
-        visible={showAddressPicker}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowAddressPicker(false)}
-      >
+      <Modal visible={showAddressPicker} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowAddressPicker(false)}>
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Manzil tanlang</Text>
-            <TouchableOpacity onPress={() => setShowAddressPicker(false)}>
-              <X size={24} color={Colors.text} />
-            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowAddressPicker(false)}><X size={24} color={Colors.text} /></TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.modalContent}>
             {addresses.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.addressPickerItem}
-                onPress={() => handleSelectSavedAddress(item)}
-              >
-                <View style={styles.addressPickerIcon}>
-                  <MapPin size={20} color={Colors.accent} />
-                </View>
+              <TouchableOpacity key={item.id} style={styles.addressPickerItem} onPress={() => handleSelectSavedAddress(item)}>
+                <View style={styles.addressPickerIcon}><MapPin size={20} color={Colors.accent} /></View>
                 <View style={styles.addressPickerInfo}>
                   <Text style={styles.addressPickerTitle}>{item.title}</Text>
                   <Text style={styles.addressPickerSubtitle}>{item.address}</Text>
