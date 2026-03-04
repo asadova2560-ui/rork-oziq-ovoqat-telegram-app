@@ -12,6 +12,7 @@ import {
   ImageIcon, Lock, ShieldCheck, LayoutDashboard, BarChart2,
   DollarSign, ShoppingBag, Users, TrendingUp,
   ArrowUpRight, ArrowDownRight, Star, Crown, Zap,
+  Phone, MapPin, CreditCard, ChevronRight, Clock, CheckCircle2,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
@@ -36,7 +37,7 @@ type Banner = {
 type Order = {
   id: string; customer_name: string; customer_phone: string;
   address: string;
-  items: { id: string; name: string; price: number; qty: number }[];
+  items: { id: string; name: string; price: number; qty: number; unit?: string }[];
   total_price: number; status: string; payment_method: string;
   note: string | null; is_fake: boolean; created_at: string;
 };
@@ -46,12 +47,13 @@ type AnalyticsSection = "overview" | "customers" | "products" | "orders";
 
 type CustomerABC = {
   name: string; phone: string; total: number; orderCount: number; class: "A" | "B" | "C";
+  orders: Order[];
 };
 
 type TopProduct = { name: string; qty: number; revenue: number };
 type DailyData = { label: string; revenue: number };
 
-// ─── Defaults ─────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 const DEFAULT_BANNERS: Banner[] = [
   { id: "1", title: "Yangi mahsulotlar", subtitle: "30% gacha chegirmalar!", btnLabel: "Xarid qilish", image: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800", bg: "#e8f5e9", titleColor: "#1b5e20", subtitleColor: "#388e3c", btnBg: "#2e7d32", btnColor: "#fff" },
   { id: "2", title: "Ramazon aksiyasi 🌙", subtitle: "Iftor mahsulotlari 40% arzon!", btnLabel: "Ko'rish", image: "https://images.unsplash.com/photo-1604908554025-4e1f6d4d3c58?w=800", bg: "#0f2d1a", titleColor: "#ffffff", subtitleColor: "#fbbf24", btnBg: "#fbbf24", btnColor: "#0f2d1a" },
@@ -68,29 +70,35 @@ const COLOR_PRESETS = [
 ];
 
 const EMPTY_PRODUCT_IMAGE = "https://images.unsplash.com/photo-1542838132-92c53300491e?w=400&h=400&fit=crop";
-
-// ─── Analytics helpers ────────────────────────────────────────────────────────
-const startOf = (period: Period): Date => {
-  const d = new Date();
-  if (period === "today") { d.setHours(0, 0, 0, 0); return d; }
-  if (period === "week") { d.setDate(d.getDate() - 6); d.setHours(0, 0, 0, 0); return d; }
-  if (period === "month") { d.setDate(1); d.setHours(0, 0, 0, 0); return d; }
-  return new Date(0);
-};
-
 const DAY_LABELS = ["Yak", "Dush", "Sesh", "Chor", "Pay", "Jum", "Shan"];
 const shortDate = (s: string) => { const d = new Date(s); return `${d.getDate()}/${d.getMonth() + 1}`; };
-
 const ABC_COLOR = { A: "#f59e0b", B: Colors.primary, C: Colors.textSecondary };
 const ABC_BG    = { A: "#fef3c7", B: Colors.primaryLight, C: "#f1f5f9" };
 
+const STATUS_FLOW = [
+  { value: "new",        label: "Yangi",         emoji: "🆕" },
+  { value: "confirmed",  label: "Tasdiqlandi",   emoji: "✅" },
+  { value: "delivering", label: "Yetkazilmoqda", emoji: "🚗" },
+  { value: "delivered",  label: "Yetkazildi",    emoji: "📦" },
+  { value: "cancelled",  label: "Bekor",         emoji: "❌" },
+  { value: "pending",    label: "Kutilmoqda",    emoji: "⏳" },
+];
+
 const STATUS_COLOR: Record<string, string> = {
-  pending: "#f59e0b", confirmed: Colors.primary,
-  delivering: "#3b82f6", delivered: "#22c55e", cancelled: Colors.danger,
+  new: "#3b82f6", pending: "#f59e0b", confirmed: Colors.primary,
+  delivering: "#8b5cf6", delivered: "#22c55e", cancelled: "#ef4444",
 };
 const STATUS_LABEL: Record<string, string> = {
-  pending: "Kutilmoqda", confirmed: "Tasdiqlangan",
+  new: "Yangi", pending: "Kutilmoqda", confirmed: "Tasdiqlandi",
   delivering: "Yetkazilmoqda", delivered: "Yetkazildi", cancelled: "Bekor",
+};
+
+const startOf = (period: Period): Date => {
+  const d = new Date();
+  if (period === "today") { d.setHours(0, 0, 0, 0); return d; }
+  if (period === "week")  { d.setDate(d.getDate() - 6); d.setHours(0, 0, 0, 0); return d; }
+  if (period === "month") { d.setDate(1); d.setHours(0, 0, 0, 0); return d; }
+  return new Date(0);
 };
 
 // ─── Mini bar chart ───────────────────────────────────────────────────────────
@@ -102,7 +110,7 @@ function MiniBarChart({ data }: { data: DailyData[] }) {
       {data.map((d, i) => (
         <View key={i} style={ch.col}>
           <View style={ch.barWrap}>
-            <View style={[ch.bar, { height: `${Math.max((d.revenue / max) * 100, 4)}%` }]} />
+            <View style={[ch.bar, { height: `${Math.max((d.revenue / max) * 100, 4)}%` as any }]} />
           </View>
           <Text style={ch.lbl}>{d.label}</Text>
         </View>
@@ -112,12 +120,12 @@ function MiniBarChart({ data }: { data: DailyData[] }) {
 }
 
 // ─── KPI card ─────────────────────────────────────────────────────────────────
-function KpiCard({ icon, label, value, sub, color, trend }: {
+function KpiCard({ icon, label, value, sub, color, trend, onPress }: {
   icon: React.ReactNode; label: string; value: string;
-  sub?: string; color: string; trend?: number;
+  sub?: string; color: string; trend?: number; onPress?: () => void;
 }) {
   return (
-    <View style={[kpi.card, { borderTopColor: color }]}>
+    <TouchableOpacity style={[kpi.card, { borderTopColor: color }]} onPress={onPress} activeOpacity={onPress ? 0.7 : 1}>
       <View style={[kpi.icon, { backgroundColor: color + "18" }]}>{icon}</View>
       <Text style={kpi.val}>{value}</Text>
       <Text style={kpi.lbl}>{label}</Text>
@@ -129,7 +137,231 @@ function KpiCard({ icon, label, value, sub, color, trend }: {
           <Text style={[kpi.sub, { color: trend !== undefined && trend >= 0 ? "#22c55e" : Colors.danger }]}>{sub}</Text>
         </View>
       )}
-    </View>
+    </TouchableOpacity>
+  );
+}
+
+// ─── Order Detail Modal ───────────────────────────────────────────────────────
+function OrderDetailModal({ order, visible, onClose, onStatusChange }: {
+  order: Order | null; visible: boolean; onClose: () => void;
+  onStatusChange: (order: Order, newStatus: string) => void;
+}) {
+  if (!order) return null;
+  const statusColor = STATUS_COLOR[order.status] ?? "#888";
+  const statusLabel = STATUS_LABEL[order.status] ?? order.status;
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={[s.modal, { paddingTop: Platform.OS === "ios" ? 20 : 0 }]}>
+        <View style={s.modalHdr}>
+          <TouchableOpacity onPress={onClose}><X size={24} color={Colors.text} /></TouchableOpacity>
+          <Text style={s.modalTitle}>Buyurtma #{order.id.slice(-6)}</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} showsVerticalScrollIndicator={false}>
+          {/* Status */}
+          <View style={od.statusCard}>
+            <View style={[od.statusDot, { backgroundColor: statusColor }]} />
+            <Text style={[od.statusTxt, { color: statusColor }]}>{statusLabel}</Text>
+            <Text style={od.statusDate}>{new Date(order.created_at).toLocaleString("uz-UZ")}</Text>
+          </View>
+
+          {/* Customer info */}
+          <View style={od.card}>
+            <Text style={od.cardTitle}>👤 Mijoz</Text>
+            <View style={od.row}><Phone size={14} color={Colors.primary} /><Text style={od.rowTxt}>{order.customer_phone}</Text></View>
+            <View style={od.row}><MapPin size={14} color={Colors.accent} /><Text style={od.rowTxt}>{order.address}</Text></View>
+            <View style={od.row}>
+              <CreditCard size={14} color="#6366F1" />
+              <Text style={od.rowTxt}>
+                {order.payment_method === "cash" ? "Naqd pul" : order.payment_method === "card" ? "Karta" : order.payment_method}
+              </Text>
+            </View>
+            {order.note && <View style={od.row}><Text style={od.noteTxt}>💬 {order.note}</Text></View>}
+          </View>
+
+          {/* Items */}
+          <View style={od.card}>
+            <Text style={od.cardTitle}>🛒 Mahsulotlar</Text>
+            {(order.items || []).map((item, i) => (
+              <View key={i} style={od.itemRow}>
+                <Text style={od.itemName}>{item.name} {item.unit ? `(${item.unit})` : ""}</Text>
+                <Text style={od.itemQty}>×{item.qty}</Text>
+                <Text style={od.itemPrice}>{formatPrice(item.price * item.qty)}</Text>
+              </View>
+            ))}
+            <View style={od.divider} />
+            <View style={od.itemRow}>
+              <Text style={od.totalLbl}>Jami:</Text>
+              <Text style={od.totalVal}>{formatPrice(order.total_price)}</Text>
+            </View>
+          </View>
+
+          {/* Status change */}
+          <View style={od.card}>
+            <Text style={od.cardTitle}>🔄 Holatni o'zgartirish</Text>
+            <View style={od.statusGrid}>
+              {STATUS_FLOW.filter(s => s.value !== order.status).map((st) => (
+                <TouchableOpacity
+                  key={st.value}
+                  style={[od.statusBtn, { borderColor: STATUS_COLOR[st.value] + "60" }]}
+                  onPress={() => onStatusChange(order, st.value)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={od.statusBtnEmoji}>{st.emoji}</Text>
+                  <Text style={[od.statusBtnTxt, { color: STATUS_COLOR[st.value] }]}>{st.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Customer Detail Modal ────────────────────────────────────────────────────
+function CustomerDetailModal({ customer, visible, onClose, onOrderPress }: {
+  customer: CustomerABC | null; visible: boolean; onClose: () => void;
+  onOrderPress: (order: Order) => void;
+}) {
+  if (!customer) return null;
+  const Icon = { A: Crown, B: Star, C: Zap }[customer.class];
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={[s.modal, { paddingTop: Platform.OS === "ios" ? 20 : 0 }]}>
+        <View style={s.modalHdr}>
+          <TouchableOpacity onPress={onClose}><X size={24} color={Colors.text} /></TouchableOpacity>
+          <Text style={s.modalTitle}>Mijoz ma'lumoti</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} showsVerticalScrollIndicator={false}>
+          {/* Profile */}
+          <View style={od.card}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 }}>
+              <View style={[od.avatar, { backgroundColor: ABC_BG[customer.class] }]}>
+                <Icon size={24} color={ABC_COLOR[customer.class]} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={od.custName}>{customer.name || customer.phone}</Text>
+                <Text style={od.custPhone}>{customer.phone}</Text>
+              </View>
+              <View style={[od.abcPill, { backgroundColor: ABC_BG[customer.class] }]}>
+                <Text style={[od.abcPillTxt, { color: ABC_COLOR[customer.class] }]}>Sinf {customer.class}</Text>
+              </View>
+            </View>
+            <View style={od.statsRow}>
+              <View style={od.statBox}>
+                <Text style={od.statVal}>{customer.orderCount}</Text>
+                <Text style={od.statLbl}>Buyurtma</Text>
+              </View>
+              <View style={od.statBox}>
+                <Text style={[od.statVal, { color: Colors.primary }]}>{formatPrice(customer.total)}</Text>
+                <Text style={od.statLbl}>Jami xarid</Text>
+              </View>
+              <View style={od.statBox}>
+                <Text style={od.statVal}>{formatPrice(customer.orderCount ? Math.round(customer.total / customer.orderCount) : 0)}</Text>
+                <Text style={od.statLbl}>O'rtacha</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Orders */}
+          <Text style={od.sectionTitle}>Buyurtmalar tarixi</Text>
+          {customer.orders.length === 0
+            ? <Text style={an.empty}>Buyurtmalar yo'q</Text>
+            : customer.orders.map((order) => (
+              <TouchableOpacity key={order.id} style={od.orderCard} onPress={() => onOrderPress(order)} activeOpacity={0.7}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                    <View style={[od.miniDot, { backgroundColor: STATUS_COLOR[order.status] }]} />
+                    <Text style={[od.miniStatus, { color: STATUS_COLOR[order.status] }]}>{STATUS_LABEL[order.status] ?? order.status}</Text>
+                    <Text style={od.miniDate}>{new Date(order.created_at).toLocaleDateString("uz-UZ")}</Text>
+                  </View>
+                  <Text style={od.miniItems} numberOfLines={1}>
+                    {(order.items || []).map(it => `${it.name} ×${it.qty}`).join(", ")}
+                  </Text>
+                </View>
+                <View style={{ alignItems: "flex-end", gap: 2 }}>
+                  <Text style={od.miniTotal}>{formatPrice(order.total_price)}</Text>
+                  <ChevronRight size={14} color={Colors.textLight} />
+                </View>
+              </TouchableOpacity>
+            ))}
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Product Analytics Modal ──────────────────────────────────────────────────
+function ProductDetailModal({ product, visible, onClose, orders }: {
+  product: TopProduct | null; visible: boolean; onClose: () => void; orders: Order[];
+}) {
+  if (!product) return null;
+  const productOrders = orders.filter(o =>
+    (o.items || []).some(it => it.name === product.name) && o.status === "delivered"
+  );
+  const avgPerOrder = productOrders.length ? Math.round(product.qty / productOrders.length) : 0;
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={[s.modal, { paddingTop: Platform.OS === "ios" ? 20 : 0 }]}>
+        <View style={s.modalHdr}>
+          <TouchableOpacity onPress={onClose}><X size={24} color={Colors.text} /></TouchableOpacity>
+          <Text style={s.modalTitle} numberOfLines={1}>{product.name}</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} showsVerticalScrollIndicator={false}>
+          {/* Stats */}
+          <View style={od.card}>
+            <Text style={od.cardTitle}>📊 Statistika</Text>
+            <View style={od.statsRow}>
+              <View style={od.statBox}>
+                <Text style={[od.statVal, { color: "#22c55e" }]}>{formatPrice(product.revenue)}</Text>
+                <Text style={od.statLbl}>Daromad</Text>
+              </View>
+              <View style={od.statBox}>
+                <Text style={od.statVal}>{product.qty}</Text>
+                <Text style={od.statLbl}>Sotilgan</Text>
+              </View>
+              <View style={od.statBox}>
+                <Text style={od.statVal}>{avgPerOrder}</Text>
+                <Text style={od.statLbl}>O'rtacha/buyurtma</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Orders with this product */}
+          <Text style={od.sectionTitle}>Bu mahsulot buyurtmalari ({productOrders.length} ta)</Text>
+          {productOrders.length === 0
+            ? <Text style={an.empty}>Buyurtmalar yo'q</Text>
+            : productOrders.slice(0, 20).map((order) => {
+              const item = (order.items || []).find(it => it.name === product.name);
+              return (
+                <View key={order.id} style={od.orderCard}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={od.custName}>{order.customer_name}</Text>
+                    <Text style={od.custPhone}>{order.customer_phone}</Text>
+                    <Text style={od.miniDate}>{new Date(order.created_at).toLocaleDateString("uz-UZ")}</Text>
+                  </View>
+                  <View style={{ alignItems: "flex-end", gap: 3 }}>
+                    <Text style={od.miniTotal}>{item ? `×${item.qty}` : ""}</Text>
+                    <View style={[od.miniDotPill, { backgroundColor: STATUS_COLOR[order.status] + "20" }]}>
+                      <Text style={[{ fontSize: 10, fontWeight: "700", color: STATUS_COLOR[order.status] }]}>{STATUS_LABEL[order.status]}</Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </View>
+    </Modal>
   );
 }
 
@@ -188,6 +420,17 @@ export default function AdminScreen() {
   const [period, setPeriod] = useState<Period>("month");
   const [analyticsSection, setAnalyticsSection] = useState<AnalyticsSection>("overview");
 
+  // ── Detail Modals ─────────────────────────────────────────────────────────
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [orderDetailVisible, setOrderDetailVisible] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerABC | null>(null);
+  const [customerDetailVisible, setCustomerDetailVisible] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<TopProduct | null>(null);
+  const [productDetailVisible, setProductDetailVisible] = useState(false);
+  // Secondary: order detail from customer modal
+  const [secondOrderVisible, setSecondOrderVisible] = useState(false);
+  const [secondOrder, setSecondOrder] = useState<Order | null>(null);
+
   // ── Load banners ──────────────────────────────────────────────────────────
   useEffect(() => {
     AsyncStorage.getItem("admin_banners").then((data) => {
@@ -195,7 +438,6 @@ export default function AdminScreen() {
     });
   }, []);
 
-  // ── Load orders when analytics tab opens ──────────────────────────────────
   useEffect(() => {
     if (activeTab === "analytics" && orders.length === 0) fetchOrders();
   }, [activeTab]);
@@ -209,9 +451,20 @@ export default function AdminScreen() {
 
   const onRefreshOrders = useCallback(async () => {
     setOrdersRefreshing(true);
-    await fetchOrders();
+    const { data, error } = await supabase.from("orders").select("*").order("created_at", { ascending: false });
+    if (!error && data) setOrders(data as Order[]);
     setOrdersRefreshing(false);
-  }, [fetchOrders]);
+  }, []);
+
+  const handleChangeStatus = useCallback(async (order: Order, newStatus: string) => {
+    const { error } = await supabase.from("orders").update({ status: newStatus }).eq("id", order.id);
+    if (error) { Alert.alert("Xatolik", error.message); return; }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, status: newStatus } : o));
+    // Update selected order too
+    if (selectedOrder?.id === order.id) setSelectedOrder({ ...order, status: newStatus });
+    if (secondOrder?.id === order.id) setSecondOrder({ ...order, status: newStatus });
+  }, [selectedOrder, secondOrder]);
 
   const saveBanners = async (next: Banner[]) => {
     setBanners(next); await AsyncStorage.setItem("admin_banners", JSON.stringify(next));
@@ -364,11 +617,11 @@ export default function AdminScreen() {
 
   const deliveredOrders = useMemo(() => filteredOrders.filter((o) => o.status === "delivered"), [filteredOrders]);
 
-  const totalRevenue = useMemo(() => deliveredOrders.reduce((s, o) => s + (o.total_price ?? o.total ?? 0), 0), [deliveredOrders]);
+  const totalRevenue = useMemo(() => deliveredOrders.reduce((s, o) => s + (o.total_price ?? 0), 0), [deliveredOrders]);
   const avgOrder = deliveredOrders.length ? totalRevenue / deliveredOrders.length : 0;
   const uniqueCustomers = new Set(filteredOrders.map((o) => o.customer_phone)).size;
   const cancelRate = filteredOrders.length ? Math.round((filteredOrders.filter((o) => o.status === "cancelled").length / filteredOrders.length) * 100) : 0;
-  const pendingCount = filteredOrders.filter((o) => o.status === "pending").length;
+  const pendingCount = filteredOrders.filter((o) => ["pending", "new"].includes(o.status)).length;
 
   const prevRevenue = useMemo(() => {
     const from = startOf(period);
@@ -387,18 +640,18 @@ export default function AdminScreen() {
       return Array.from({ length: 7 }, (_, i) => {
         const d = new Date(); d.setDate(d.getDate() - (6 - i));
         const dateStr = d.toDateString();
-        const rev = deliveredOrders.filter((o) => new Date(o.created_at).toDateString() === dateStr).reduce((s, o) => s + o.total, 0);
+        const rev = deliveredOrders.filter((o) => new Date(o.created_at).toDateString() === dateStr).reduce((s, o) => s + (o.total_price ?? 0), 0);
         return { label: DAY_LABELS[d.getDay()], revenue: rev };
       });
     }
     if (period === "today") {
       return Array.from({ length: 24 }, (_, h) => {
-        const rev = deliveredOrders.filter((o) => new Date(o.created_at).getHours() === h).reduce((s, o) => s + o.total, 0);
+        const rev = deliveredOrders.filter((o) => new Date(o.created_at).getHours() === h).reduce((s, o) => s + (o.total_price ?? 0), 0);
         return { label: `${h}`, revenue: rev };
       }).filter((_, h) => h <= new Date().getHours()).slice(-8);
     }
     const byDay: Record<string, number> = {};
-    deliveredOrders.forEach((o) => { const k = shortDate(o.created_at); byDay[k] = (byDay[k] || 0) + o.total; });
+    deliveredOrders.forEach((o) => { const k = shortDate(o.created_at); byDay[k] = (byDay[k] || 0) + (o.total_price ?? 0); });
     return Object.entries(byDay).slice(-10).map(([label, revenue]) => ({ label, revenue }));
   }, [deliveredOrders, period]);
 
@@ -419,15 +672,19 @@ export default function AdminScreen() {
   const abcCustomers = useMemo((): CustomerABC[] => {
     const map: Record<string, CustomerABC> = {};
     orders.forEach((o) => {
-      if (o.status !== "delivered") return;
       const k = o.customer_phone;
-      if (!map[k]) map[k] = { name: o.customer_name, phone: k, total: 0, orderCount: 0, class: "C" };
-      map[k].total += (o.total_price ?? 0); map[k].orderCount += 1;
+      if (!map[k]) map[k] = { name: o.customer_name, phone: k, total: 0, orderCount: 0, class: "C", orders: [] };
+      map[k].orders.push(o);
+      if (o.status === "delivered") { map[k].total += (o.total_price ?? 0); map[k].orderCount += 1; }
     });
     const list = Object.values(map).sort((a, b) => b.total - a.total);
     const grandTotal = list.reduce((s, c) => s + c.total, 0);
     let cum = 0;
-    return list.map((c) => { cum += c.total; const pct = grandTotal > 0 ? (cum / grandTotal) * 100 : 100; return { ...c, class: pct <= 70 ? "A" : pct <= 90 ? "B" : "C" }; });
+    return list.map((c) => {
+      cum += c.total;
+      const pct = grandTotal > 0 ? (cum / grandTotal) * 100 : 100;
+      return { ...c, class: pct <= 70 ? "A" : pct <= 90 ? "B" : "C" };
+    });
   }, [orders]);
 
   const aCount = abcCustomers.filter((c) => c.class === "A").length;
@@ -435,12 +692,10 @@ export default function AdminScreen() {
   const cCount = abcCustomers.filter((c) => c.class === "C").length;
 
   const units = ["kg", "dona", "litr", "gramm", "paket"];
-
   const PERIODS: { key: Period; label: string }[] = [
     { key: "today", label: "Bugun" }, { key: "week", label: "Hafta" },
     { key: "month", label: "Oy" }, { key: "all", label: "Hammasi" },
   ];
-
   const ANALYTICS_SECTIONS: { key: AnalyticsSection; label: string; icon: any }[] = [
     { key: "overview", label: "Umumiy", icon: BarChart2 },
     { key: "customers", label: "Mijozlar", icon: Users },
@@ -485,34 +740,26 @@ export default function AdminScreen() {
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}><ArrowLeft size={22} color={Colors.text} /></TouchableOpacity>
         <Text style={s.headerTitle}>Admin panel</Text>
-        {activeTab === "products" && (
-          <TouchableOpacity onPress={openAddModal} style={s.addBtn}><Plus size={22} color={Colors.white} /></TouchableOpacity>
-        )}
-        {activeTab === "banners" && (
-          <TouchableOpacity onPress={openAddBanner} style={s.addBtn}><Plus size={22} color={Colors.white} /></TouchableOpacity>
-        )}
-        {activeTab === "analytics" && (
-          <TouchableOpacity onPress={onRefreshOrders} style={s.addBtn}><TrendingUp size={20} color={Colors.white} /></TouchableOpacity>
-        )}
+        {activeTab === "products" && <TouchableOpacity onPress={openAddModal} style={s.addBtn}><Plus size={22} color={Colors.white} /></TouchableOpacity>}
+        {activeTab === "banners" && <TouchableOpacity onPress={openAddBanner} style={s.addBtn}><Plus size={22} color={Colors.white} /></TouchableOpacity>}
+        {activeTab === "analytics" && <TouchableOpacity onPress={onRefreshOrders} style={s.addBtn}><TrendingUp size={20} color={Colors.white} /></TouchableOpacity>}
       </View>
 
       {/* TABS */}
       <View style={s.tabBar}>
-        <TouchableOpacity style={[s.tab, activeTab === "products" && s.tabOn]} onPress={() => setActiveTab("products")}>
-          <LayoutDashboard size={14} color={activeTab === "products" ? "#fff" : Colors.textSecondary} />
-          <Text style={[s.tabTxt, activeTab === "products" && s.tabTxtOn]}>Mahsulot</Text>
-          <View style={s.badge}><Text style={s.badgeTxt}>{products.length}</Text></View>
-        </TouchableOpacity>
-        <TouchableOpacity style={[s.tab, activeTab === "banners" && s.tabOn]} onPress={() => setActiveTab("banners")}>
-          <ImageIcon size={14} color={activeTab === "banners" ? "#fff" : Colors.textSecondary} />
-          <Text style={[s.tabTxt, activeTab === "banners" && s.tabTxtOn]}>Banner</Text>
-          <View style={s.badge}><Text style={s.badgeTxt}>{banners.length}</Text></View>
-        </TouchableOpacity>
-        <TouchableOpacity style={[s.tab, activeTab === "analytics" && s.tabOn]} onPress={() => setActiveTab("analytics")}>
-          <BarChart2 size={14} color={activeTab === "analytics" ? "#fff" : Colors.textSecondary} />
-          <Text style={[s.tabTxt, activeTab === "analytics" && s.tabTxtOn]}>Analitika</Text>
-          <View style={s.badge}><Text style={s.badgeTxt}>{orders.length}</Text></View>
-        </TouchableOpacity>
+        {(["products", "banners", "analytics"] as const).map((tab) => {
+          const icons = { products: LayoutDashboard, banners: ImageIcon, analytics: BarChart2 };
+          const labels = { products: "Mahsulot", banners: "Banner", analytics: "Analitika" };
+          const counts = { products: products.length, banners: banners.length, analytics: orders.length };
+          const Icon = icons[tab];
+          return (
+            <TouchableOpacity key={tab} style={[s.tab, activeTab === tab && s.tabOn]} onPress={() => setActiveTab(tab)}>
+              <Icon size={14} color={activeTab === tab ? "#fff" : Colors.textSecondary} />
+              <Text style={[s.tabTxt, activeTab === tab && s.tabTxtOn]}>{labels[tab]}</Text>
+              <View style={s.badge}><Text style={s.badgeTxt}>{counts[tab]}</Text></View>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* ══ PRODUCTS ══ */}
@@ -566,9 +813,7 @@ export default function AdminScreen() {
               <View style={s.bannerInfo}>
                 <Text style={[s.bannerTitle, { color: b.titleColor }]} numberOfLines={1}>{b.title}</Text>
                 <Text style={[s.bannerSub, { color: b.subtitleColor }]} numberOfLines={1}>{b.subtitle}</Text>
-                <View style={[s.bannerBtn, { backgroundColor: b.btnBg }]}>
-                  <Text style={[s.bannerBtnTxt, { color: b.btnColor }]}>{b.btnLabel}</Text>
-                </View>
+                <View style={[s.bannerBtn, { backgroundColor: b.btnBg }]}><Text style={[s.bannerBtnTxt, { color: b.btnColor }]}>{b.btnLabel}</Text></View>
               </View>
               <View style={s.actions}>
                 <TouchableOpacity style={s.editBtn} onPress={() => openEditBanner(b)}><Pencil size={16} color={Colors.primary} /></TouchableOpacity>
@@ -583,7 +828,6 @@ export default function AdminScreen() {
       {/* ══ ANALYTICS ══ */}
       {activeTab === "analytics" && (
         <>
-          {/* Period selector */}
           <View style={an.periodBar}>
             {PERIODS.map((p) => (
               <TouchableOpacity key={p.key} style={[an.periodBtn, period === p.key && an.periodBtnOn]} onPress={() => setPeriod(p.key)}>
@@ -591,8 +835,6 @@ export default function AdminScreen() {
               </TouchableOpacity>
             ))}
           </View>
-
-          {/* Section tabs */}
           <View style={an.secBar}>
             {ANALYTICS_SECTIONS.map((sec) => {
               const Icon = sec.icon;
@@ -606,10 +848,7 @@ export default function AdminScreen() {
           </View>
 
           {ordersLoading ? (
-            <View style={an.loadingWrap}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={an.loadingTxt}>Yuklanmoqda...</Text>
-            </View>
+            <View style={an.loadingWrap}><ActivityIndicator size="large" color={Colors.primary} /><Text style={an.loadingTxt}>Yuklanmoqda...</Text></View>
           ) : (
             <ScrollView
               showsVerticalScrollIndicator={false}
@@ -620,39 +859,40 @@ export default function AdminScreen() {
               {analyticsSection === "overview" && (
                 <>
                   <View style={an.kpiGrid}>
-                    <KpiCard icon={<DollarSign size={18} color="#22c55e" />} label="Daromad" value={formatPrice(totalRevenue)} sub={`${revTrend >= 0 ? "+" : ""}${revTrend}%`} trend={revTrend} color="#22c55e" />
-                    <KpiCard icon={<ShoppingBag size={18} color={Colors.primary} />} label="Buyurtmalar" value={`${filteredOrders.length} ta`} sub={`${pendingCount} kutmoqda`} trend={0} color={Colors.primary} />
+                    <KpiCard icon={<DollarSign size={18} color="#22c55e" />} label="Daromad" value={formatPrice(totalRevenue)} sub={`${revTrend >= 0 ? "+" : ""}${revTrend}%`} trend={revTrend} color="#22c55e"
+                      onPress={() => setAnalyticsSection("orders")} />
+                    <KpiCard icon={<ShoppingBag size={18} color={Colors.primary} />} label="Buyurtmalar" value={`${filteredOrders.length} ta`} sub={`${pendingCount} kutmoqda`} trend={0} color={Colors.primary}
+                      onPress={() => setAnalyticsSection("orders")} />
                   </View>
                   <View style={an.kpiGrid}>
                     <KpiCard icon={<TrendingUp size={18} color="#8b5cf6" />} label="O'rtacha chek" value={formatPrice(avgOrder)} color="#8b5cf6" />
-                    <KpiCard icon={<Users size={18} color="#f59e0b" />} label="Mijozlar" value={`${uniqueCustomers} ta`} sub={`Bekor: ${cancelRate}%`} trend={cancelRate > 20 ? -1 : 1} color="#f59e0b" />
+                    <KpiCard icon={<Users size={18} color="#f59e0b" />} label="Mijozlar" value={`${uniqueCustomers} ta`} sub={`Bekor: ${cancelRate}%`} trend={cancelRate > 20 ? -1 : 1} color="#f59e0b"
+                      onPress={() => setAnalyticsSection("customers")} />
                   </View>
 
-                  {/* Status bars */}
                   <View style={an.card}>
                     <Text style={an.cardTitle}>Buyurtma holatlari</Text>
-                    {(["pending", "confirmed", "delivering", "delivered", "cancelled"]).map((st) => {
+                    {(["new", "pending", "confirmed", "delivering", "delivered", "cancelled"]).map((st) => {
                       const cnt = filteredOrders.filter((o) => o.status === st).length;
+                      if (cnt === 0) return null;
                       const pct = filteredOrders.length ? (cnt / filteredOrders.length) * 100 : 0;
                       return (
                         <View key={st} style={an.stRow}>
                           <View style={[an.stDot, { backgroundColor: STATUS_COLOR[st] }]} />
                           <Text style={an.stLbl}>{STATUS_LABEL[st]}</Text>
-                          <View style={an.stBar}><View style={[an.stFill, { width: `${pct}%`, backgroundColor: STATUS_COLOR[st] }]} /></View>
+                          <View style={an.stBar}><View style={[an.stFill, { width: `${pct}%` as any, backgroundColor: STATUS_COLOR[st] }]} /></View>
                           <Text style={an.stCnt}>{cnt}</Text>
                         </View>
                       );
                     })}
                   </View>
 
-                  {/* Chart */}
                   <View style={an.card}>
                     <Text style={an.cardTitle}>Daromad grafigi</Text>
                     <MiniBarChart data={chartData} />
                     <Text style={an.chartNote}>Jami: {formatPrice(totalRevenue)}</Text>
                   </View>
 
-                  {/* Payment methods */}
                   <View style={an.card}>
                     <Text style={an.cardTitle}>To'lov usullari</Text>
                     <View style={an.payRow}>
@@ -701,18 +941,20 @@ export default function AdminScreen() {
                     : abcCustomers.map((c, i) => {
                       const Icon = { A: Crown, B: Star, C: Zap }[c.class];
                       return (
-                        <View key={c.phone} style={an.custRow}>
+                        <TouchableOpacity key={c.phone} style={an.custRow} activeOpacity={0.7}
+                          onPress={() => { setSelectedCustomer(c); setCustomerDetailVisible(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}>
                           <Text style={an.rank}>#{i + 1}</Text>
                           <View style={[an.abcBadge, { backgroundColor: ABC_BG[c.class] }]}>
                             <Icon size={13} color={ABC_COLOR[c.class]} />
                             <Text style={[an.abcBadgeTxt, { color: ABC_COLOR[c.class] }]}>{c.class}</Text>
                           </View>
                           <View style={{ flex: 1 }}>
-                            <Text style={an.custName}>{c.name}</Text>
+                            <Text style={an.custName}>{c.name || c.phone}</Text>
                             <Text style={an.custPhone}>{c.phone} · {c.orderCount} buyurtma</Text>
                           </View>
                           <Text style={an.custTotal}>{formatPrice(c.total)}</Text>
-                        </View>
+                          <ChevronRight size={14} color={Colors.textLight} />
+                        </TouchableOpacity>
                       );
                     })}
                 </>
@@ -723,24 +965,26 @@ export default function AdminScreen() {
                 <>
                   <View style={an.card}>
                     <Text style={an.cardTitle}>Eng ko'p sotilganlar</Text>
-                    <Text style={an.cardSub}>Yetkazilgan buyurtmalar asosida</Text>
+                    <Text style={an.cardSub}>Yetkazilgan buyurtmalar asosida • bosib batafsil ko'ring</Text>
                   </View>
                   {topProducts.length === 0
                     ? <Text style={an.empty}>Ma'lumot yo'q</Text>
                     : topProducts.map((p, i) => (
-                      <View key={p.name} style={an.prodRow}>
+                      <TouchableOpacity key={p.name} style={an.prodRow} activeOpacity={0.7}
+                        onPress={() => { setSelectedProduct(p); setProductDetailVisible(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}>
                         <View style={[an.prodRank, i < 3 && { backgroundColor: "#fef3c7" }]}>
                           <Text style={[an.prodRankTxt, i < 3 && { color: "#f59e0b" }]}>#{i + 1}</Text>
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={an.prodName}>{p.name}</Text>
                           <View style={an.prodBarWrap}>
-                            <View style={[an.prodBar, { width: `${(p.revenue / maxProductRevenue) * 100}%` }]} />
+                            <View style={[an.prodBar, { width: `${(p.revenue / maxProductRevenue) * 100}%` as any }]} />
                           </View>
                           <Text style={an.prodQty}>{p.qty} dona sotildi</Text>
                         </View>
                         <Text style={an.prodRev}>{formatPrice(p.revenue)}</Text>
-                      </View>
+                        <ChevronRight size={14} color={Colors.textLight} />
+                      </TouchableOpacity>
                     ))}
                 </>
               )}
@@ -750,13 +994,14 @@ export default function AdminScreen() {
                 <>
                   <View style={[an.card, { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }]}>
                     <Text style={an.cardTitle}>Buyurtmalar</Text>
-                    <Text style={an.cardSub}>{filteredOrders.length} ta</Text>
+                    <Text style={an.cardSub}>{filteredOrders.length} ta • bosib batafsil</Text>
                   </View>
                   {filteredOrders.length === 0
                     ? <Text style={an.empty}>Buyurtmalar yo'q</Text>
-                    : filteredOrders.slice(0, 50).map((o) => (
-                      <View key={o.id} style={an.orderRow}>
-                        <View style={[an.orderDot, { backgroundColor: STATUS_COLOR[o.status] }]} />
+                    : filteredOrders.slice(0, 100).map((o) => (
+                      <TouchableOpacity key={o.id} style={an.orderRow} activeOpacity={0.7}
+                        onPress={() => { setSelectedOrder(o); setOrderDetailVisible(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}>
+                        <View style={[an.orderDot, { backgroundColor: STATUS_COLOR[o.status] ?? "#888" }]} />
                         <View style={{ flex: 1 }}>
                           <Text style={an.orderName}>{o.customer_name}</Text>
                           <Text style={an.orderPhone}>{o.customer_phone}</Text>
@@ -765,11 +1010,12 @@ export default function AdminScreen() {
                         </View>
                         <View style={{ alignItems: "flex-end", gap: 4 }}>
                           <Text style={an.orderTotal}>{formatPrice(o.total_price ?? 0)}</Text>
-                          <View style={[an.orderStatus, { backgroundColor: STATUS_COLOR[o.status] + "20" }]}>
-                            <Text style={[an.orderStatusTxt, { color: STATUS_COLOR[o.status] }]}>{STATUS_LABEL[o.status]}</Text>
+                          <View style={[an.orderStatus, { backgroundColor: (STATUS_COLOR[o.status] ?? "#888") + "20" }]}>
+                            <Text style={[an.orderStatusTxt, { color: STATUS_COLOR[o.status] ?? "#888" }]}>{STATUS_LABEL[o.status] ?? o.status}</Text>
                           </View>
+                          <ChevronRight size={12} color={Colors.textLight} />
                         </View>
-                      </View>
+                      </TouchableOpacity>
                     ))}
                 </>
               )}
@@ -860,6 +1106,41 @@ export default function AdminScreen() {
           </KeyboardAvoidingView>
         </View>
       </Modal>
+
+      {/* ══ Order Detail Modal ══ */}
+      <OrderDetailModal
+        order={selectedOrder}
+        visible={orderDetailVisible}
+        onClose={() => setOrderDetailVisible(false)}
+        onStatusChange={handleChangeStatus}
+      />
+
+      {/* ══ Customer Detail Modal ══ */}
+      <CustomerDetailModal
+        customer={selectedCustomer}
+        visible={customerDetailVisible}
+        onClose={() => setCustomerDetailVisible(false)}
+        onOrderPress={(order) => {
+          setSecondOrder(order);
+          setSecondOrderVisible(true);
+        }}
+      />
+
+      {/* ══ Second Order Detail (from customer modal) ══ */}
+      <OrderDetailModal
+        order={secondOrder}
+        visible={secondOrderVisible}
+        onClose={() => setSecondOrderVisible(false)}
+        onStatusChange={handleChangeStatus}
+      />
+
+      {/* ══ Product Detail Modal ══ */}
+      <ProductDetailModal
+        product={selectedProduct}
+        visible={productDetailVisible}
+        onClose={() => setProductDetailVisible(false)}
+        orders={orders}
+      />
     </View>
   );
 }
@@ -910,7 +1191,7 @@ const s = StyleSheet.create({
   delBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: "#FEE2E2", justifyContent: "center", alignItems: "center" },
   modal: { flex: 1, backgroundColor: Colors.background },
   modalHdr: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  modalTitle: { fontSize: 17, fontWeight: "700", color: Colors.text },
+  modalTitle: { fontSize: 17, fontWeight: "700", color: Colors.text, flex: 1, textAlign: "center" },
   saveTxt: { fontSize: 16, fontWeight: "700", color: Colors.primary },
   modalBody: { padding: 16 },
   fg: { marginBottom: 16 },
@@ -937,7 +1218,7 @@ const s = StyleSheet.create({
   prevSub: { fontSize: 11, marginTop: 3, lineHeight: 15 },
   prevBtn: { alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, marginTop: 8 },
   prevBtnTxt: { fontWeight: "700", fontSize: 12 },
-  prevImg: { width: 110, height: "100%" },
+  prevImg: { width: 110, height: "100%" as any },
   prevImgEmpty: { width: 110, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.05)" },
   presets: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   preset: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
@@ -960,7 +1241,6 @@ const s = StyleSheet.create({
   pinBtnTxt: { fontSize: 16, fontWeight: "700", color: Colors.white },
 });
 
-// ─── Analytics styles ─────────────────────────────────────────────────────────
 const an = StyleSheet.create({
   periodBar: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
   periodBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: Colors.surfaceSecondary },
@@ -985,7 +1265,7 @@ const an = StyleSheet.create({
   stDot: { width: 8, height: 8, borderRadius: 4 },
   stLbl: { width: 110, fontSize: 12, color: Colors.text, fontWeight: "500" },
   stBar: { flex: 1, height: 6, backgroundColor: Colors.borderLight, borderRadius: 3, overflow: "hidden" },
-  stFill: { height: "100%", borderRadius: 3 },
+  stFill: { height: "100%" as any, borderRadius: 3 },
   stCnt: { width: 24, fontSize: 12, fontWeight: "700", color: Colors.text, textAlign: "right" },
   payRow: { flexDirection: "row", gap: 10, marginTop: 4 },
   payCard: { flex: 1, backgroundColor: Colors.background, borderRadius: 12, padding: 12, alignItems: "center", gap: 2 },
@@ -997,22 +1277,22 @@ const an = StyleSheet.create({
   abcClass: { fontSize: 20, fontWeight: "900" },
   abcCnt: { fontSize: 13, fontWeight: "700", color: Colors.text },
   abcDesc: { fontSize: 10, color: Colors.textSecondary, fontWeight: "600" },
-  custRow: { flexDirection: "row", alignItems: "center", backgroundColor: Colors.white, borderRadius: 14, padding: 12, gap: 8, marginBottom: 0 },
+  custRow: { flexDirection: "row", alignItems: "center", backgroundColor: Colors.white, borderRadius: 14, padding: 12, gap: 8 },
   rank: { width: 26, fontSize: 12, fontWeight: "700", color: Colors.textSecondary },
   abcBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8 },
   abcBadgeTxt: { fontSize: 12, fontWeight: "800" },
   custName: { fontSize: 13, fontWeight: "600", color: Colors.text },
   custPhone: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
   custTotal: { fontSize: 13, fontWeight: "700", color: Colors.primary },
-  prodRow: { flexDirection: "row", alignItems: "center", backgroundColor: Colors.white, borderRadius: 14, padding: 12, gap: 10, marginBottom: 0 },
+  prodRow: { flexDirection: "row", alignItems: "center", backgroundColor: Colors.white, borderRadius: 14, padding: 12, gap: 10 },
   prodRank: { width: 32, height: 32, borderRadius: 10, backgroundColor: Colors.borderLight, justifyContent: "center", alignItems: "center" },
   prodRankTxt: { fontSize: 11, fontWeight: "700", color: Colors.textSecondary },
   prodName: { fontSize: 13, fontWeight: "600", color: Colors.text },
   prodBarWrap: { height: 4, backgroundColor: Colors.borderLight, borderRadius: 2, marginVertical: 4, overflow: "hidden" },
-  prodBar: { height: "100%", backgroundColor: Colors.primary, borderRadius: 2 },
+  prodBar: { height: "100%" as any, backgroundColor: Colors.primary, borderRadius: 2 },
   prodQty: { fontSize: 11, color: Colors.textSecondary },
   prodRev: { fontSize: 13, fontWeight: "700", color: Colors.primary },
-  orderRow: { flexDirection: "row", backgroundColor: Colors.white, borderRadius: 14, padding: 12, gap: 10, alignItems: "flex-start", marginBottom: 0 },
+  orderRow: { flexDirection: "row", backgroundColor: Colors.white, borderRadius: 14, padding: 12, gap: 10, alignItems: "flex-start" },
   orderDot: { width: 10, height: 10, borderRadius: 5, marginTop: 3 },
   orderName: { fontSize: 13, fontWeight: "600", color: Colors.text },
   orderPhone: { fontSize: 11, color: Colors.textSecondary },
@@ -1023,7 +1303,6 @@ const an = StyleSheet.create({
   orderStatusTxt: { fontSize: 10, fontWeight: "700" },
 });
 
-// ─── Chart styles ─────────────────────────────────────────────────────────────
 const ch = StyleSheet.create({
   wrap: { flexDirection: "row", alignItems: "flex-end", height: 80, gap: 3, paddingTop: 8 },
   col: { flex: 1, alignItems: "center", gap: 3 },
@@ -1032,7 +1311,6 @@ const ch = StyleSheet.create({
   lbl: { fontSize: 8, color: Colors.textLight, fontWeight: "600" },
 });
 
-// ─── KPI styles ───────────────────────────────────────────────────────────────
 const kpi = StyleSheet.create({
   card: { flex: 1, backgroundColor: Colors.white, borderRadius: 16, padding: 14, borderTopWidth: 3 },
   icon: { width: 34, height: 34, borderRadius: 10, justifyContent: "center", alignItems: "center", marginBottom: 8 },
@@ -1040,4 +1318,45 @@ const kpi = StyleSheet.create({
   lbl: { fontSize: 11, color: Colors.textSecondary, fontWeight: "600", marginTop: 2 },
   row: { flexDirection: "row", alignItems: "center", gap: 2, marginTop: 4 },
   sub: { fontSize: 11, fontWeight: "600" },
+});
+
+// Order detail styles
+const od = StyleSheet.create({
+  statusCard: { flexDirection: "row", alignItems: "center", backgroundColor: Colors.white, borderRadius: 14, padding: 14, gap: 10 },
+  statusDot: { width: 12, height: 12, borderRadius: 6 },
+  statusTxt: { fontSize: 15, fontWeight: "700", flex: 1 },
+  statusDate: { fontSize: 12, color: Colors.textSecondary },
+  card: { backgroundColor: Colors.white, borderRadius: 14, padding: 14, gap: 8 },
+  cardTitle: { fontSize: 14, fontWeight: "700", color: Colors.text, marginBottom: 4 },
+  row: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  rowTxt: { fontSize: 14, color: Colors.text, flex: 1, lineHeight: 20 },
+  noteTxt: { fontSize: 13, color: Colors.textSecondary, fontStyle: "italic" },
+  itemRow: { flexDirection: "row", alignItems: "center", paddingVertical: 5 },
+  itemName: { flex: 1, fontSize: 13, color: Colors.text },
+  itemQty: { fontSize: 13, color: Colors.textSecondary, marginHorizontal: 8 },
+  itemPrice: { fontSize: 13, fontWeight: "700", color: Colors.primary },
+  divider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 6 },
+  totalLbl: { flex: 1, fontSize: 15, fontWeight: "700", color: Colors.text },
+  totalVal: { fontSize: 17, fontWeight: "800", color: Colors.primary },
+  statusGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
+  statusBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, borderWidth: 1.5, backgroundColor: Colors.background },
+  statusBtnEmoji: { fontSize: 14 },
+  statusBtnTxt: { fontSize: 12, fontWeight: "700" },
+  avatar: { width: 48, height: 48, borderRadius: 16, justifyContent: "center", alignItems: "center" },
+  custName: { fontSize: 15, fontWeight: "700", color: Colors.text },
+  custPhone: { fontSize: 12, color: Colors.textSecondary },
+  abcPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  abcPillTxt: { fontSize: 12, fontWeight: "800" },
+  statsRow: { flexDirection: "row", gap: 8 },
+  statBox: { flex: 1, backgroundColor: Colors.background, borderRadius: 10, padding: 10, alignItems: "center", gap: 2 },
+  statVal: { fontSize: 14, fontWeight: "800", color: Colors.text },
+  statLbl: { fontSize: 10, color: Colors.textSecondary, textAlign: "center" },
+  sectionTitle: { fontSize: 14, fontWeight: "700", color: Colors.textSecondary, marginTop: 4 },
+  orderCard: { flexDirection: "row", alignItems: "center", backgroundColor: Colors.white, borderRadius: 12, padding: 12, gap: 10 },
+  miniDot: { width: 7, height: 7, borderRadius: 3.5 },
+  miniStatus: { fontSize: 11, fontWeight: "700" },
+  miniDate: { fontSize: 10, color: Colors.textLight, marginLeft: "auto" },
+  miniItems: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
+  miniTotal: { fontSize: 13, fontWeight: "700", color: Colors.primary },
+  miniDotPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
 });
