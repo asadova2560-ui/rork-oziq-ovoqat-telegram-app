@@ -2,13 +2,16 @@ import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
   Alert, KeyboardAvoidingView, Platform, Modal, ActivityIndicator,
+  Dimensions, RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Image } from "expo-image";
 import {
   ArrowLeft, Plus, Pencil, Trash2, X, Search, Package, Tag,
-  ImageIcon, Lock, ShieldCheck, LayoutDashboard,
+  ImageIcon, Lock, ShieldCheck, LayoutDashboard, BarChart2,
+  DollarSign, ShoppingBag, Users, TrendingUp,
+  ArrowUpRight, ArrowDownRight, Star, Crown, Zap,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
@@ -21,19 +24,30 @@ import { ADMIN_PIN } from "@/constants/config";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { supabase } from "@/lib/supabase";
 
+const { width: SW } = Dimensions.get("window");
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Banner = {
-  id: string;
-  title: string;
-  subtitle: string;
-  btnLabel: string;
-  image: string;
-  bg: string;
-  titleColor: string;
-  subtitleColor: string;
-  btnBg: string;
-  btnColor: string;
+  id: string; title: string; subtitle: string; btnLabel: string;
+  image: string; bg: string; titleColor: string; subtitleColor: string;
+  btnBg: string; btnColor: string;
 };
+
+type Order = {
+  id: string; customer_name: string; customer_phone: string;
+  items: { id: string; name: string; price: number; qty: number }[];
+  total: number; status: string; payment_method: string; created_at: string;
+};
+
+type Period = "today" | "week" | "month" | "all";
+type AnalyticsSection = "overview" | "customers" | "products" | "orders";
+
+type CustomerABC = {
+  name: string; phone: string; total: number; orderCount: number; class: "A" | "B" | "C";
+};
+
+type TopProduct = { name: string; qty: number; revenue: number };
+type DailyData = { label: string; revenue: number };
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 const DEFAULT_BANNERS: Banner[] = [
@@ -53,20 +67,85 @@ const COLOR_PRESETS = [
 
 const EMPTY_PRODUCT_IMAGE = "https://images.unsplash.com/photo-1542838132-92c53300491e?w=400&h=400&fit=crop";
 
+// ─── Analytics helpers ────────────────────────────────────────────────────────
+const startOf = (period: Period): Date => {
+  const d = new Date();
+  if (period === "today") { d.setHours(0, 0, 0, 0); return d; }
+  if (period === "week") { d.setDate(d.getDate() - 6); d.setHours(0, 0, 0, 0); return d; }
+  if (period === "month") { d.setDate(1); d.setHours(0, 0, 0, 0); return d; }
+  return new Date(0);
+};
+
+const DAY_LABELS = ["Yak", "Dush", "Sesh", "Chor", "Pay", "Jum", "Shan"];
+const shortDate = (s: string) => { const d = new Date(s); return `${d.getDate()}/${d.getMonth() + 1}`; };
+
+const ABC_COLOR = { A: "#f59e0b", B: Colors.primary, C: Colors.textSecondary };
+const ABC_BG    = { A: "#fef3c7", B: Colors.primaryLight, C: "#f1f5f9" };
+
+const STATUS_COLOR: Record<string, string> = {
+  pending: "#f59e0b", confirmed: Colors.primary,
+  delivering: "#3b82f6", delivered: "#22c55e", cancelled: Colors.danger,
+};
+const STATUS_LABEL: Record<string, string> = {
+  pending: "Kutilmoqda", confirmed: "Tasdiqlangan",
+  delivering: "Yetkazilmoqda", delivered: "Yetkazildi", cancelled: "Bekor",
+};
+
+// ─── Mini bar chart ───────────────────────────────────────────────────────────
+function MiniBarChart({ data }: { data: DailyData[] }) {
+  if (!data.length) return <Text style={an.empty}>Ma'lumot yo'q</Text>;
+  const max = Math.max(...data.map((d) => d.revenue), 1);
+  return (
+    <View style={ch.wrap}>
+      {data.map((d, i) => (
+        <View key={i} style={ch.col}>
+          <View style={ch.barWrap}>
+            <View style={[ch.bar, { height: `${Math.max((d.revenue / max) * 100, 4)}%` }]} />
+          </View>
+          <Text style={ch.lbl}>{d.label}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ─── KPI card ─────────────────────────────────────────────────────────────────
+function KpiCard({ icon, label, value, sub, color, trend }: {
+  icon: React.ReactNode; label: string; value: string;
+  sub?: string; color: string; trend?: number;
+}) {
+  return (
+    <View style={[kpi.card, { borderTopColor: color }]}>
+      <View style={[kpi.icon, { backgroundColor: color + "18" }]}>{icon}</View>
+      <Text style={kpi.val}>{value}</Text>
+      <Text style={kpi.lbl}>{label}</Text>
+      {sub && (
+        <View style={kpi.row}>
+          {trend !== undefined && (trend >= 0
+            ? <ArrowUpRight size={11} color="#22c55e" />
+            : <ArrowDownRight size={11} color={Colors.danger} />)}
+          <Text style={[kpi.sub, { color: trend !== undefined && trend >= 0 ? "#22c55e" : Colors.danger }]}>{sub}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 export default function AdminScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { products, categories, addProduct, updateProduct, deleteProduct, resetToDefaults } = useProducts();
 
-  // Auth
+  // ── Auth ──────────────────────────────────────────────────────────────────
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState(false);
 
-  // Tab
-  const [activeTab, setActiveTab] = useState<"products" | "banners">("products");
+  // ── Tabs ──────────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<"products" | "banners" | "analytics">("products");
 
-  // Products state
+  // ── Products state ────────────────────────────────────────────────────────
   const [search, setSearch] = useState("");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -84,7 +163,7 @@ export default function AdminScreen() {
   const [formIsFeatured, setFormIsFeatured] = useState(false);
   const [formIsOnSale, setFormIsOnSale] = useState(false);
 
-  // Banners state
+  // ── Banners state ─────────────────────────────────────────────────────────
   const [banners, setBanners] = useState<Banner[]>(DEFAULT_BANNERS);
   const [bannerModalVisible, setBannerModalVisible] = useState(false);
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
@@ -100,29 +179,58 @@ export default function AdminScreen() {
   const [bBtnBg, setBBtnBg] = useState("#2e7d32");
   const [bBtnColor, setBBtnColor] = useState("#ffffff");
 
-  // Load banners
+  // ── Analytics state ───────────────────────────────────────────────────────
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersRefreshing, setOrdersRefreshing] = useState(false);
+  const [period, setPeriod] = useState<Period>("month");
+  const [analyticsSection, setAnalyticsSection] = useState<AnalyticsSection>("overview");
+
+  // ── Load banners ──────────────────────────────────────────────────────────
   useEffect(() => {
     AsyncStorage.getItem("admin_banners").then((data) => {
       if (data) { try { const p = JSON.parse(data); if (Array.isArray(p) && p.length > 0) setBanners(p); } catch {} }
     });
   }, []);
 
+  // ── Load orders when analytics tab opens ──────────────────────────────────
+  useEffect(() => {
+    if (activeTab === "analytics" && orders.length === 0) fetchOrders();
+  }, [activeTab]);
+
+  const fetchOrders = useCallback(async () => {
+    setOrdersLoading(true);
+    const { data, error } = await supabase.from("orders").select("*").order("created_at", { ascending: false });
+    if (!error && data) setOrders(data as Order[]);
+    setOrdersLoading(false);
+  }, []);
+
+  const onRefreshOrders = useCallback(async () => {
+    setOrdersRefreshing(true);
+    await fetchOrders();
+    setOrdersRefreshing(false);
+  }, [fetchOrders]);
+
   const saveBanners = async (next: Banner[]) => {
-    setBanners(next);
-    await AsyncStorage.setItem("admin_banners", JSON.stringify(next));
+    setBanners(next); await AsyncStorage.setItem("admin_banners", JSON.stringify(next));
   };
 
-  // PIN
+  // ── PIN ───────────────────────────────────────────────────────────────────
   const handlePinSubmit = useCallback(() => {
-    if (pinInput === ADMIN_PIN) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); setIsAuthenticated(true); setPinError(false); }
-    else { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); setPinError(true); setPinInput(""); }
+    if (pinInput === ADMIN_PIN) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setIsAuthenticated(true); setPinError(false);
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setPinError(true); setPinInput("");
+    }
   }, [pinInput]);
 
   const handlePinChange = useCallback((text: string) => {
     setPinInput(text.replace(/\D/g, "").slice(0, 4)); setPinError(false);
   }, []);
 
-  // Products
+  // ── Products ──────────────────────────────────────────────────────────────
   const filteredProducts = useMemo(() => {
     if (!search.trim()) return products;
     const q = search.toLowerCase();
@@ -167,7 +275,12 @@ export default function AdminScreen() {
   const handleSave = useCallback(async () => {
     if (!formNameUz.trim()) { Alert.alert("Xatolik", "Mahsulot nomini kiriting"); return; }
     if (!formPrice || Number(formPrice) <= 0) { Alert.alert("Xatolik", "Narxni to'g'ri kiriting"); return; }
-    const productData = { name: formName.trim() || formNameUz.trim(), nameUz: formNameUz.trim(), price: Number(formPrice), oldPrice: formOldPrice ? Number(formOldPrice) : null, unit: formUnit, image: formImage, categoryId: formCategory, description: formDescription, rating: editingProduct?.rating ?? 4.5, inStock: formInStock, isFeatured: formIsFeatured, isOnSale: formIsOnSale };
+    const productData = {
+      name: formName.trim() || formNameUz.trim(), nameUz: formNameUz.trim(),
+      price: Number(formPrice), oldPrice: formOldPrice ? Number(formOldPrice) : null,
+      unit: formUnit, image: formImage, categoryId: formCategory, description: formDescription,
+      rating: editingProduct?.rating ?? 4.5, inStock: formInStock, isFeatured: formIsFeatured, isOnSale: formIsOnSale,
+    };
     if (isAdding) { await addProduct(productData); } else if (editingProduct) { await updateProduct(editingProduct.id, productData); }
     setModalVisible(false);
   }, [formName, formNameUz, formPrice, formOldPrice, formUnit, formImage, formCategory, formDescription, formInStock, formIsFeatured, formIsOnSale, isAdding, editingProduct, addProduct, updateProduct]);
@@ -186,7 +299,7 @@ export default function AdminScreen() {
     ]);
   }, [resetToDefaults]);
 
-  // Banners
+  // ── Banners ───────────────────────────────────────────────────────────────
   const applyPreset = (p: typeof COLOR_PRESETS[0]) => {
     setBBg(p.bg); setBTitleColor(p.titleColor); setBSubtitleColor(p.subtitleColor); setBBtnBg(p.btnBg); setBBtnColor(p.btnColor);
   };
@@ -241,7 +354,97 @@ export default function AdminScreen() {
     ]);
   };
 
+  // ── Analytics computed ────────────────────────────────────────────────────
+  const filteredOrders = useMemo(() => {
+    const from = startOf(period);
+    return orders.filter((o) => new Date(o.created_at) >= from);
+  }, [orders, period]);
+
+  const deliveredOrders = useMemo(() => filteredOrders.filter((o) => o.status === "delivered"), [filteredOrders]);
+
+  const totalRevenue = useMemo(() => deliveredOrders.reduce((s, o) => s + o.total, 0), [deliveredOrders]);
+  const avgOrder = deliveredOrders.length ? totalRevenue / deliveredOrders.length : 0;
+  const uniqueCustomers = new Set(filteredOrders.map((o) => o.customer_phone)).size;
+  const cancelRate = filteredOrders.length ? Math.round((filteredOrders.filter((o) => o.status === "cancelled").length / filteredOrders.length) * 100) : 0;
+  const pendingCount = filteredOrders.filter((o) => o.status === "pending").length;
+
+  const prevRevenue = useMemo(() => {
+    const from = startOf(period);
+    const diff = Date.now() - from.getTime();
+    const prevFrom = new Date(from.getTime() - diff);
+    return orders.filter((o) => {
+      const t = new Date(o.created_at).getTime();
+      return t >= prevFrom.getTime() && t < from.getTime() && o.status === "delivered";
+    }).reduce((s, o) => s + o.total, 0);
+  }, [orders, period]);
+
+  const revTrend = prevRevenue > 0 ? Math.round(((totalRevenue - prevRevenue) / prevRevenue) * 100) : 0;
+
+  const chartData = useMemo((): DailyData[] => {
+    if (period === "week") {
+      return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(); d.setDate(d.getDate() - (6 - i));
+        const dateStr = d.toDateString();
+        const rev = deliveredOrders.filter((o) => new Date(o.created_at).toDateString() === dateStr).reduce((s, o) => s + o.total, 0);
+        return { label: DAY_LABELS[d.getDay()], revenue: rev };
+      });
+    }
+    if (period === "today") {
+      return Array.from({ length: 24 }, (_, h) => {
+        const rev = deliveredOrders.filter((o) => new Date(o.created_at).getHours() === h).reduce((s, o) => s + o.total, 0);
+        return { label: `${h}`, revenue: rev };
+      }).filter((_, h) => h <= new Date().getHours()).slice(-8);
+    }
+    const byDay: Record<string, number> = {};
+    deliveredOrders.forEach((o) => { const k = shortDate(o.created_at); byDay[k] = (byDay[k] || 0) + o.total; });
+    return Object.entries(byDay).slice(-10).map(([label, revenue]) => ({ label, revenue }));
+  }, [deliveredOrders, period]);
+
+  const topProducts = useMemo((): TopProduct[] => {
+    const map: Record<string, TopProduct> = {};
+    deliveredOrders.forEach((o) => {
+      o.items.forEach((item) => {
+        if (!map[item.name]) map[item.name] = { name: item.name, qty: 0, revenue: 0 };
+        map[item.name].qty += item.qty;
+        map[item.name].revenue += item.price * item.qty;
+      });
+    });
+    return Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 8);
+  }, [deliveredOrders]);
+
+  const maxProductRevenue = Math.max(...topProducts.map((p) => p.revenue), 1);
+
+  const abcCustomers = useMemo((): CustomerABC[] => {
+    const map: Record<string, CustomerABC> = {};
+    orders.forEach((o) => {
+      if (o.status !== "delivered") return;
+      const k = o.customer_phone;
+      if (!map[k]) map[k] = { name: o.customer_name, phone: k, total: 0, orderCount: 0, class: "C" };
+      map[k].total += o.total; map[k].orderCount += 1;
+    });
+    const list = Object.values(map).sort((a, b) => b.total - a.total);
+    const grandTotal = list.reduce((s, c) => s + c.total, 0);
+    let cum = 0;
+    return list.map((c) => { cum += c.total; const pct = grandTotal > 0 ? (cum / grandTotal) * 100 : 100; return { ...c, class: pct <= 70 ? "A" : pct <= 90 ? "B" : "C" }; });
+  }, [orders]);
+
+  const aCount = abcCustomers.filter((c) => c.class === "A").length;
+  const bCount = abcCustomers.filter((c) => c.class === "B").length;
+  const cCount = abcCustomers.filter((c) => c.class === "C").length;
+
   const units = ["kg", "dona", "litr", "gramm", "paket"];
+
+  const PERIODS: { key: Period; label: string }[] = [
+    { key: "today", label: "Bugun" }, { key: "week", label: "Hafta" },
+    { key: "month", label: "Oy" }, { key: "all", label: "Hammasi" },
+  ];
+
+  const ANALYTICS_SECTIONS: { key: AnalyticsSection; label: string; icon: any }[] = [
+    { key: "overview", label: "Umumiy", icon: BarChart2 },
+    { key: "customers", label: "Mijozlar", icon: Users },
+    { key: "products", label: "Mahsulot", icon: Package },
+    { key: "orders", label: "Buyurtma", icon: ShoppingBag },
+  ];
 
   // ── PIN Screen ─────────────────────────────────────────────────────────────
   if (!isAuthenticated) {
@@ -276,29 +479,41 @@ export default function AdminScreen() {
   // ── Main ───────────────────────────────────────────────────────────────────
   return (
     <View style={[s.container, { paddingTop: insets.top }]}>
+      {/* Header */}
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}><ArrowLeft size={22} color={Colors.text} /></TouchableOpacity>
         <Text style={s.headerTitle}>Admin panel</Text>
-        <TouchableOpacity onPress={activeTab === "products" ? openAddModal : openAddBanner} style={s.addBtn}>
-          <Plus size={22} color={Colors.white} />
-        </TouchableOpacity>
+        {activeTab === "products" && (
+          <TouchableOpacity onPress={openAddModal} style={s.addBtn}><Plus size={22} color={Colors.white} /></TouchableOpacity>
+        )}
+        {activeTab === "banners" && (
+          <TouchableOpacity onPress={openAddBanner} style={s.addBtn}><Plus size={22} color={Colors.white} /></TouchableOpacity>
+        )}
+        {activeTab === "analytics" && (
+          <TouchableOpacity onPress={onRefreshOrders} style={s.addBtn}><TrendingUp size={20} color={Colors.white} /></TouchableOpacity>
+        )}
       </View>
 
       {/* TABS */}
       <View style={s.tabBar}>
         <TouchableOpacity style={[s.tab, activeTab === "products" && s.tabOn]} onPress={() => setActiveTab("products")}>
-          <LayoutDashboard size={15} color={activeTab === "products" ? "#fff" : Colors.textSecondary} />
-          <Text style={[s.tabTxt, activeTab === "products" && s.tabTxtOn]}>Mahsulotlar</Text>
+          <LayoutDashboard size={14} color={activeTab === "products" ? "#fff" : Colors.textSecondary} />
+          <Text style={[s.tabTxt, activeTab === "products" && s.tabTxtOn]}>Mahsulot</Text>
           <View style={s.badge}><Text style={s.badgeTxt}>{products.length}</Text></View>
         </TouchableOpacity>
         <TouchableOpacity style={[s.tab, activeTab === "banners" && s.tabOn]} onPress={() => setActiveTab("banners")}>
-          <ImageIcon size={15} color={activeTab === "banners" ? "#fff" : Colors.textSecondary} />
-          <Text style={[s.tabTxt, activeTab === "banners" && s.tabTxtOn]}>Bannerlar</Text>
+          <ImageIcon size={14} color={activeTab === "banners" ? "#fff" : Colors.textSecondary} />
+          <Text style={[s.tabTxt, activeTab === "banners" && s.tabTxtOn]}>Banner</Text>
           <View style={s.badge}><Text style={s.badgeTxt}>{banners.length}</Text></View>
+        </TouchableOpacity>
+        <TouchableOpacity style={[s.tab, activeTab === "analytics" && s.tabOn]} onPress={() => setActiveTab("analytics")}>
+          <BarChart2 size={14} color={activeTab === "analytics" ? "#fff" : Colors.textSecondary} />
+          <Text style={[s.tabTxt, activeTab === "analytics" && s.tabTxtOn]}>Analitika</Text>
+          <View style={s.badge}><Text style={s.badgeTxt}>{orders.length}</Text></View>
         </TouchableOpacity>
       </View>
 
-      {/* ── PRODUCTS ── */}
+      {/* ══ PRODUCTS ══ */}
       {activeTab === "products" && (
         <>
           <View style={s.searchBar}>
@@ -339,7 +554,7 @@ export default function AdminScreen() {
         </>
       )}
 
-      {/* ── BANNERS ── */}
+      {/* ══ BANNERS ══ */}
       {activeTab === "banners" && (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.list}>
           <Text style={s.hint}>Bosh sahifada aylanib ko'rinadigan reklamalar. "+" bilan yangi banner qo'shing.</Text>
@@ -363,7 +578,207 @@ export default function AdminScreen() {
         </ScrollView>
       )}
 
-      {/* ── Product Modal ── */}
+      {/* ══ ANALYTICS ══ */}
+      {activeTab === "analytics" && (
+        <>
+          {/* Period selector */}
+          <View style={an.periodBar}>
+            {PERIODS.map((p) => (
+              <TouchableOpacity key={p.key} style={[an.periodBtn, period === p.key && an.periodBtnOn]} onPress={() => setPeriod(p.key)}>
+                <Text style={[an.periodTxt, period === p.key && an.periodTxtOn]}>{p.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Section tabs */}
+          <View style={an.secBar}>
+            {ANALYTICS_SECTIONS.map((sec) => {
+              const Icon = sec.icon;
+              return (
+                <TouchableOpacity key={sec.key} style={[an.secBtn, analyticsSection === sec.key && an.secBtnOn]} onPress={() => setAnalyticsSection(sec.key)}>
+                  <Icon size={13} color={analyticsSection === sec.key ? Colors.primary : Colors.textLight} />
+                  <Text style={[an.secTxt, analyticsSection === sec.key && an.secTxtOn]}>{sec.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {ordersLoading ? (
+            <View style={an.loadingWrap}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+              <Text style={an.loadingTxt}>Yuklanmoqda...</Text>
+            </View>
+          ) : (
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={an.scroll}
+              refreshControl={<RefreshControl refreshing={ordersRefreshing} onRefresh={onRefreshOrders} tintColor={Colors.primary} />}
+            >
+              {/* ── OVERVIEW ── */}
+              {analyticsSection === "overview" && (
+                <>
+                  <View style={an.kpiGrid}>
+                    <KpiCard icon={<DollarSign size={18} color="#22c55e" />} label="Daromad" value={formatPrice(totalRevenue)} sub={`${revTrend >= 0 ? "+" : ""}${revTrend}%`} trend={revTrend} color="#22c55e" />
+                    <KpiCard icon={<ShoppingBag size={18} color={Colors.primary} />} label="Buyurtmalar" value={`${filteredOrders.length} ta`} sub={`${pendingCount} kutmoqda`} trend={0} color={Colors.primary} />
+                  </View>
+                  <View style={an.kpiGrid}>
+                    <KpiCard icon={<TrendingUp size={18} color="#8b5cf6" />} label="O'rtacha chek" value={formatPrice(avgOrder)} color="#8b5cf6" />
+                    <KpiCard icon={<Users size={18} color="#f59e0b" />} label="Mijozlar" value={`${uniqueCustomers} ta`} sub={`Bekor: ${cancelRate}%`} trend={cancelRate > 20 ? -1 : 1} color="#f59e0b" />
+                  </View>
+
+                  {/* Status bars */}
+                  <View style={an.card}>
+                    <Text style={an.cardTitle}>Buyurtma holatlari</Text>
+                    {(["pending", "confirmed", "delivering", "delivered", "cancelled"]).map((st) => {
+                      const cnt = filteredOrders.filter((o) => o.status === st).length;
+                      const pct = filteredOrders.length ? (cnt / filteredOrders.length) * 100 : 0;
+                      return (
+                        <View key={st} style={an.stRow}>
+                          <View style={[an.stDot, { backgroundColor: STATUS_COLOR[st] }]} />
+                          <Text style={an.stLbl}>{STATUS_LABEL[st]}</Text>
+                          <View style={an.stBar}><View style={[an.stFill, { width: `${pct}%`, backgroundColor: STATUS_COLOR[st] }]} /></View>
+                          <Text style={an.stCnt}>{cnt}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+
+                  {/* Chart */}
+                  <View style={an.card}>
+                    <Text style={an.cardTitle}>Daromad grafigi</Text>
+                    <MiniBarChart data={chartData} />
+                    <Text style={an.chartNote}>Jami: {formatPrice(totalRevenue)}</Text>
+                  </View>
+
+                  {/* Payment methods */}
+                  <View style={an.card}>
+                    <Text style={an.cardTitle}>To'lov usullari</Text>
+                    <View style={an.payRow}>
+                      {(["cash", "card", "online"]).map((pm) => {
+                        const cnt = filteredOrders.filter((o) => o.payment_method === pm).length;
+                        const pct = filteredOrders.length ? Math.round((cnt / filteredOrders.length) * 100) : 0;
+                        const labels: Record<string, string> = { cash: "💵 Naqd", card: "💳 Karta", online: "📱 Online" };
+                        const colors: Record<string, string> = { cash: "#22c55e", card: Colors.primary, online: "#8b5cf6" };
+                        return (
+                          <View key={pm} style={an.payCard}>
+                            <Text style={[an.payPct, { color: colors[pm] }]}>{pct}%</Text>
+                            <Text style={an.payLbl}>{labels[pm]}</Text>
+                            <Text style={an.payCnt}>{cnt} ta</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </>
+              )}
+
+              {/* ── CUSTOMERS ── */}
+              {analyticsSection === "customers" && (
+                <>
+                  <View style={an.card}>
+                    <Text style={an.cardTitle}>ABC Tahlil</Text>
+                    <Text style={an.cardSub}>A mijozlar 70% daromad keltiradi (Pareto)</Text>
+                    <View style={an.abcRow}>
+                      {(["A", "B", "C"] as const).map((cls) => {
+                        const cnt = { A: aCount, B: bCount, C: cCount }[cls];
+                        const Icon = { A: Crown, B: Star, C: Zap }[cls];
+                        return (
+                          <View key={cls} style={[an.abcBox, { backgroundColor: ABC_BG[cls] }]}>
+                            <Icon size={20} color={ABC_COLOR[cls]} />
+                            <Text style={[an.abcClass, { color: ABC_COLOR[cls] }]}>{cls}</Text>
+                            <Text style={an.abcCnt}>{cnt} ta</Text>
+                            <Text style={an.abcDesc}>{cls === "A" ? "VIP" : cls === "B" ? "Doimiy" : "Yangi"}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  {abcCustomers.length === 0
+                    ? <Text style={an.empty}>Mijozlar yo'q</Text>
+                    : abcCustomers.map((c, i) => {
+                      const Icon = { A: Crown, B: Star, C: Zap }[c.class];
+                      return (
+                        <View key={c.phone} style={an.custRow}>
+                          <Text style={an.rank}>#{i + 1}</Text>
+                          <View style={[an.abcBadge, { backgroundColor: ABC_BG[c.class] }]}>
+                            <Icon size={13} color={ABC_COLOR[c.class]} />
+                            <Text style={[an.abcBadgeTxt, { color: ABC_COLOR[c.class] }]}>{c.class}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={an.custName}>{c.name}</Text>
+                            <Text style={an.custPhone}>{c.phone} · {c.orderCount} buyurtma</Text>
+                          </View>
+                          <Text style={an.custTotal}>{formatPrice(c.total)}</Text>
+                        </View>
+                      );
+                    })}
+                </>
+              )}
+
+              {/* ── PRODUCTS ── */}
+              {analyticsSection === "products" && (
+                <>
+                  <View style={an.card}>
+                    <Text style={an.cardTitle}>Eng ko'p sotilganlar</Text>
+                    <Text style={an.cardSub}>Yetkazilgan buyurtmalar asosida</Text>
+                  </View>
+                  {topProducts.length === 0
+                    ? <Text style={an.empty}>Ma'lumot yo'q</Text>
+                    : topProducts.map((p, i) => (
+                      <View key={p.name} style={an.prodRow}>
+                        <View style={[an.prodRank, i < 3 && { backgroundColor: "#fef3c7" }]}>
+                          <Text style={[an.prodRankTxt, i < 3 && { color: "#f59e0b" }]}>#{i + 1}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={an.prodName}>{p.name}</Text>
+                          <View style={an.prodBarWrap}>
+                            <View style={[an.prodBar, { width: `${(p.revenue / maxProductRevenue) * 100}%` }]} />
+                          </View>
+                          <Text style={an.prodQty}>{p.qty} dona sotildi</Text>
+                        </View>
+                        <Text style={an.prodRev}>{formatPrice(p.revenue)}</Text>
+                      </View>
+                    ))}
+                </>
+              )}
+
+              {/* ── ORDERS ── */}
+              {analyticsSection === "orders" && (
+                <>
+                  <View style={[an.card, { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }]}>
+                    <Text style={an.cardTitle}>Buyurtmalar</Text>
+                    <Text style={an.cardSub}>{filteredOrders.length} ta</Text>
+                  </View>
+                  {filteredOrders.length === 0
+                    ? <Text style={an.empty}>Buyurtmalar yo'q</Text>
+                    : filteredOrders.slice(0, 50).map((o) => (
+                      <View key={o.id} style={an.orderRow}>
+                        <View style={[an.orderDot, { backgroundColor: STATUS_COLOR[o.status] }]} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={an.orderName}>{o.customer_name}</Text>
+                          <Text style={an.orderPhone}>{o.customer_phone}</Text>
+                          <Text style={an.orderItems} numberOfLines={1}>{o.items.map((it) => `${it.name} ×${it.qty}`).join(", ")}</Text>
+                          <Text style={an.orderDate}>{new Date(o.created_at).toLocaleDateString("uz-UZ")}</Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end", gap: 4 }}>
+                          <Text style={an.orderTotal}>{formatPrice(o.total)}</Text>
+                          <View style={[an.orderStatus, { backgroundColor: STATUS_COLOR[o.status] + "20" }]}>
+                            <Text style={[an.orderStatusTxt, { color: STATUS_COLOR[o.status] }]}>{STATUS_LABEL[o.status]}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                </>
+              )}
+
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          )}
+        </>
+      )}
+
+      {/* ══ Product Modal ══ */}
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalVisible(false)}>
         <View style={[s.modal, { paddingTop: Platform.OS === "ios" ? 20 : insets.top }]}>
           <View style={s.modalHdr}>
@@ -400,7 +815,7 @@ export default function AdminScreen() {
         </View>
       </Modal>
 
-      {/* ── Banner Modal ── */}
+      {/* ══ Banner Modal ══ */}
       <Modal visible={bannerModalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setBannerModalVisible(false)}>
         <View style={[s.modal, { paddingTop: Platform.OS === "ios" ? 20 : insets.top }]}>
           <View style={s.modalHdr}>
@@ -410,30 +825,23 @@ export default function AdminScreen() {
           </View>
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.modalBody}>
-
-              {/* Live preview */}
               <View style={[s.prevCard, { backgroundColor: bBg }]}>
                 <View style={s.prevLeft}>
                   <Text style={[s.prevTitle, { color: bTitleColor }]} numberOfLines={2}>{bTitle || "Sarlavha"}</Text>
                   <Text style={[s.prevSub, { color: bSubtitleColor }]} numberOfLines={2}>{bSubtitle || "Qo'shimcha matn"}</Text>
                   <View style={[s.prevBtn, { backgroundColor: bBtnBg }]}><Text style={[s.prevBtnTxt, { color: bBtnColor }]}>{bBtnLabel || "Tugma"}</Text></View>
                 </View>
-                {bImage
-                  ? <Image source={{ uri: bImage }} style={s.prevImg} contentFit="cover" />
-                  : <View style={s.prevImgEmpty}><ImageIcon size={28} color="rgba(0,0,0,0.2)" /></View>}
+                {bImage ? <Image source={{ uri: bImage }} style={s.prevImg} contentFit="cover" /> : <View style={s.prevImgEmpty}><ImageIcon size={28} color="rgba(0,0,0,0.2)" /></View>}
               </View>
-
               <View style={s.fg}><Text style={s.fl}>Sarlavha *</Text><TextInput style={s.fi} value={bTitle} onChangeText={setBTitle} placeholder="Masalan: Yangi mahsulotlar" placeholderTextColor={Colors.textLight} /></View>
               <View style={s.fg}><Text style={s.fl}>Qo'shimcha matn</Text><TextInput style={s.fi} value={bSubtitle} onChangeText={setBSubtitle} placeholder="30% gacha chegirmalar!" placeholderTextColor={Colors.textLight} /></View>
               <View style={s.fg}><Text style={s.fl}>Tugma matni</Text><TextInput style={s.fi} value={bBtnLabel} onChangeText={setBBtnLabel} placeholder="Xarid qilish" placeholderTextColor={Colors.textLight} /></View>
-
               <View style={s.fg}>
                 <Text style={s.fl}>Rasm</Text>
                 <TouchableOpacity style={[s.imgBtn, bannerImageUploading && { opacity: 0.6 }]} onPress={handlePickBannerImage} disabled={bannerImageUploading}>
                   {bannerImageUploading ? <><ActivityIndicator size="small" color={Colors.primary} /><Text style={s.imgBtnTxt}>Yuklanmoqda...</Text></> : <><ImageIcon size={18} color={Colors.primary} /><Text style={s.imgBtnTxt}>Galereyadan tanlash</Text></>}
                 </TouchableOpacity>
               </View>
-
               <View style={s.fg}>
                 <Text style={s.fl}>Rang mavzusi</Text>
                 <View style={s.presets}>
@@ -445,7 +853,6 @@ export default function AdminScreen() {
                   ))}
                 </View>
               </View>
-
               <View style={{ height: 60 }} />
             </ScrollView>
           </KeyboardAvoidingView>
@@ -455,24 +862,21 @@ export default function AdminScreen() {
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
   backBtn: { width: 42, height: 42, borderRadius: 14, backgroundColor: Colors.surfaceSecondary, justifyContent: "center", alignItems: "center" },
   headerTitle: { fontSize: 17, fontWeight: "700", color: Colors.text },
   addBtn: { width: 42, height: 42, borderRadius: 14, backgroundColor: Colors.primary, justifyContent: "center", alignItems: "center" },
-
-  // Tabs
   tabBar: { flexDirection: "row", margin: 16, marginBottom: 8, backgroundColor: Colors.surfaceSecondary, borderRadius: 14, padding: 4 },
-  tab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingVertical: 10, borderRadius: 11 },
+  tab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, borderRadius: 11 },
   tabOn: { backgroundColor: Colors.primary },
-  tabTxt: { fontSize: 14, fontWeight: "600", color: Colors.textSecondary },
+  tabTxt: { fontSize: 12, fontWeight: "600", color: Colors.textSecondary },
   tabTxtOn: { color: "#fff" },
-  badge: { backgroundColor: "rgba(255,255,255,0.25)", borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1 },
-  badgeTxt: { fontSize: 11, fontWeight: "700", color: "#fff" },
+  badge: { backgroundColor: "rgba(255,255,255,0.25)", borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 },
+  badgeTxt: { fontSize: 10, fontWeight: "700", color: "#fff" },
   hint: { fontSize: 13, color: Colors.textSecondary, marginHorizontal: 16, marginBottom: 12, lineHeight: 18 },
-
-  // Banner list row
   bannerRow: { flexDirection: "row", alignItems: "center", borderRadius: 16, marginBottom: 10, overflow: "hidden", padding: 10 },
   bannerThumb: { width: 72, height: 56, borderRadius: 10 },
   bannerInfo: { flex: 1, marginLeft: 10 },
@@ -480,16 +884,12 @@ const s = StyleSheet.create({
   bannerSub: { fontSize: 12, marginTop: 2 },
   bannerBtn: { alignSelf: "flex-start", marginTop: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 7 },
   bannerBtnTxt: { fontSize: 11, fontWeight: "700" },
-
-  // Search
   searchBar: { flexDirection: "row", alignItems: "center", backgroundColor: Colors.white, marginHorizontal: 16, marginTop: 8, marginBottom: 4, borderRadius: 12, paddingHorizontal: 12, height: 44, gap: 8 },
   searchInput: { flex: 1, fontSize: 15, color: Colors.text },
   statsBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 20, paddingVertical: 8 },
   statsTxt: { fontSize: 13, color: Colors.textSecondary, fontWeight: "600" },
   resetTxt: { fontSize: 13, color: Colors.danger, fontWeight: "600" },
   list: { paddingHorizontal: 16 },
-
-  // Product row
   productRow: { flexDirection: "row", backgroundColor: Colors.white, borderRadius: 14, padding: 12, marginBottom: 8, alignItems: "center" },
   productImg: { width: 56, height: 56, borderRadius: 12 },
   productInfo: { flex: 1, marginLeft: 12 },
@@ -506,8 +906,6 @@ const s = StyleSheet.create({
   actions: { flexDirection: "column", gap: 6, marginLeft: 8 },
   editBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: Colors.primaryLight, justifyContent: "center", alignItems: "center" },
   delBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: "#FEE2E2", justifyContent: "center", alignItems: "center" },
-
-  // Modal
   modal: { flex: 1, backgroundColor: Colors.background },
   modalHdr: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
   modalTitle: { fontSize: 17, fontWeight: "700", color: Colors.text },
@@ -531,8 +929,6 @@ const s = StyleSheet.create({
   toggleSale: { backgroundColor: Colors.accent, borderColor: Colors.accent },
   toggleTxt: { fontSize: 13, fontWeight: "600", color: Colors.text },
   toggleTxtOn: { color: Colors.white },
-
-  // Banner modal preview
   prevCard: { borderRadius: 18, flexDirection: "row", overflow: "hidden", height: 130, marginBottom: 20 },
   prevLeft: { flex: 1, padding: 14, justifyContent: "center" },
   prevTitle: { fontSize: 15, fontWeight: "800", lineHeight: 20 },
@@ -545,8 +941,6 @@ const s = StyleSheet.create({
   preset: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
   presetDot: { width: 10, height: 10, borderRadius: 5 },
   presetTxt: { fontSize: 13, fontWeight: "600" },
-
-  // PIN
   pinWrap: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 40, paddingBottom: 80 },
   pinIcon: { width: 80, height: 80, borderRadius: 28, backgroundColor: Colors.primaryLight, justifyContent: "center", alignItems: "center", marginBottom: 24 },
   pinTitle: { fontSize: 22, fontWeight: "800", color: Colors.text },
@@ -562,4 +956,86 @@ const s = StyleSheet.create({
   pinBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: Colors.primary, borderRadius: 14, paddingHorizontal: 32, paddingVertical: 14, marginTop: 28 },
   pinBtnOff: { opacity: 0.5 },
   pinBtnTxt: { fontSize: 16, fontWeight: "700", color: Colors.white },
+});
+
+// ─── Analytics styles ─────────────────────────────────────────────────────────
+const an = StyleSheet.create({
+  periodBar: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  periodBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: Colors.surfaceSecondary },
+  periodBtnOn: { backgroundColor: Colors.primary },
+  periodTxt: { fontSize: 13, fontWeight: "600", color: Colors.textSecondary },
+  periodTxtOn: { color: "#fff" },
+  secBar: { flexDirection: "row", backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  secBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: "transparent" },
+  secBtnOn: { borderBottomColor: Colors.primary },
+  secTxt: { fontSize: 11, fontWeight: "600", color: Colors.textLight },
+  secTxtOn: { color: Colors.primary },
+  loadingWrap: { flex: 1, justifyContent: "center", alignItems: "center", gap: 12 },
+  loadingTxt: { fontSize: 14, color: Colors.textSecondary },
+  scroll: { padding: 16, gap: 10 },
+  kpiGrid: { flexDirection: "row", gap: 10 },
+  card: { backgroundColor: Colors.white, borderRadius: 16, padding: 16 },
+  cardTitle: { fontSize: 15, fontWeight: "700", color: Colors.text, marginBottom: 2 },
+  cardSub: { fontSize: 12, color: Colors.textSecondary, marginBottom: 12 },
+  chartNote: { fontSize: 12, color: Colors.textSecondary, marginTop: 6, textAlign: "right", fontWeight: "600" },
+  empty: { textAlign: "center", color: Colors.textLight, fontSize: 14, paddingVertical: 32 },
+  stRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 5 },
+  stDot: { width: 8, height: 8, borderRadius: 4 },
+  stLbl: { width: 110, fontSize: 12, color: Colors.text, fontWeight: "500" },
+  stBar: { flex: 1, height: 6, backgroundColor: Colors.borderLight, borderRadius: 3, overflow: "hidden" },
+  stFill: { height: "100%", borderRadius: 3 },
+  stCnt: { width: 24, fontSize: 12, fontWeight: "700", color: Colors.text, textAlign: "right" },
+  payRow: { flexDirection: "row", gap: 10, marginTop: 4 },
+  payCard: { flex: 1, backgroundColor: Colors.background, borderRadius: 12, padding: 12, alignItems: "center", gap: 2 },
+  payPct: { fontSize: 20, fontWeight: "800" },
+  payLbl: { fontSize: 11, color: Colors.textSecondary, fontWeight: "600" },
+  payCnt: { fontSize: 11, color: Colors.textLight },
+  abcRow: { flexDirection: "row", gap: 10 },
+  abcBox: { flex: 1, borderRadius: 12, padding: 12, alignItems: "center", gap: 3 },
+  abcClass: { fontSize: 20, fontWeight: "900" },
+  abcCnt: { fontSize: 13, fontWeight: "700", color: Colors.text },
+  abcDesc: { fontSize: 10, color: Colors.textSecondary, fontWeight: "600" },
+  custRow: { flexDirection: "row", alignItems: "center", backgroundColor: Colors.white, borderRadius: 14, padding: 12, gap: 8, marginBottom: 0 },
+  rank: { width: 26, fontSize: 12, fontWeight: "700", color: Colors.textSecondary },
+  abcBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 8 },
+  abcBadgeTxt: { fontSize: 12, fontWeight: "800" },
+  custName: { fontSize: 13, fontWeight: "600", color: Colors.text },
+  custPhone: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
+  custTotal: { fontSize: 13, fontWeight: "700", color: Colors.primary },
+  prodRow: { flexDirection: "row", alignItems: "center", backgroundColor: Colors.white, borderRadius: 14, padding: 12, gap: 10, marginBottom: 0 },
+  prodRank: { width: 32, height: 32, borderRadius: 10, backgroundColor: Colors.borderLight, justifyContent: "center", alignItems: "center" },
+  prodRankTxt: { fontSize: 11, fontWeight: "700", color: Colors.textSecondary },
+  prodName: { fontSize: 13, fontWeight: "600", color: Colors.text },
+  prodBarWrap: { height: 4, backgroundColor: Colors.borderLight, borderRadius: 2, marginVertical: 4, overflow: "hidden" },
+  prodBar: { height: "100%", backgroundColor: Colors.primary, borderRadius: 2 },
+  prodQty: { fontSize: 11, color: Colors.textSecondary },
+  prodRev: { fontSize: 13, fontWeight: "700", color: Colors.primary },
+  orderRow: { flexDirection: "row", backgroundColor: Colors.white, borderRadius: 14, padding: 12, gap: 10, alignItems: "flex-start", marginBottom: 0 },
+  orderDot: { width: 10, height: 10, borderRadius: 5, marginTop: 3 },
+  orderName: { fontSize: 13, fontWeight: "600", color: Colors.text },
+  orderPhone: { fontSize: 11, color: Colors.textSecondary },
+  orderItems: { fontSize: 11, color: Colors.textLight, marginTop: 2 },
+  orderDate: { fontSize: 11, color: Colors.textLight, marginTop: 1 },
+  orderTotal: { fontSize: 13, fontWeight: "700", color: Colors.text },
+  orderStatus: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
+  orderStatusTxt: { fontSize: 10, fontWeight: "700" },
+});
+
+// ─── Chart styles ─────────────────────────────────────────────────────────────
+const ch = StyleSheet.create({
+  wrap: { flexDirection: "row", alignItems: "flex-end", height: 80, gap: 3, paddingTop: 8 },
+  col: { flex: 1, alignItems: "center", gap: 3 },
+  barWrap: { flex: 1, width: "100%", justifyContent: "flex-end" },
+  bar: { width: "100%", borderRadius: 3, minHeight: 4, backgroundColor: Colors.primary },
+  lbl: { fontSize: 8, color: Colors.textLight, fontWeight: "600" },
+});
+
+// ─── KPI styles ───────────────────────────────────────────────────────────────
+const kpi = StyleSheet.create({
+  card: { flex: 1, backgroundColor: Colors.white, borderRadius: 16, padding: 14, borderTopWidth: 3 },
+  icon: { width: 34, height: 34, borderRadius: 10, justifyContent: "center", alignItems: "center", marginBottom: 8 },
+  val: { fontSize: 17, fontWeight: "800", color: Colors.text },
+  lbl: { fontSize: 11, color: Colors.textSecondary, fontWeight: "600", marginTop: 2 },
+  row: { flexDirection: "row", alignItems: "center", gap: 2, marginTop: 4 },
+  sub: { fontSize: 11, fontWeight: "600" },
 });
