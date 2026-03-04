@@ -35,8 +35,10 @@ type Banner = {
 
 type Order = {
   id: string; customer_name: string; customer_phone: string;
+  address: string;
   items: { id: string; name: string; price: number; qty: number }[];
-  total: number; status: string; payment_method: string; created_at: string;
+  total_price: number; status: string; payment_method: string;
+  note: string | null; is_fake: boolean; created_at: string;
 };
 
 type Period = "today" | "week" | "month" | "all";
@@ -362,7 +364,7 @@ export default function AdminScreen() {
 
   const deliveredOrders = useMemo(() => filteredOrders.filter((o) => o.status === "delivered"), [filteredOrders]);
 
-  const totalRevenue = useMemo(() => deliveredOrders.reduce((s, o) => s + o.total, 0), [deliveredOrders]);
+  const totalRevenue = useMemo(() => deliveredOrders.reduce((s, o) => s + (o.total_price ?? o.total ?? 0), 0), [deliveredOrders]);
   const avgOrder = deliveredOrders.length ? totalRevenue / deliveredOrders.length : 0;
   const uniqueCustomers = new Set(filteredOrders.map((o) => o.customer_phone)).size;
   const cancelRate = filteredOrders.length ? Math.round((filteredOrders.filter((o) => o.status === "cancelled").length / filteredOrders.length) * 100) : 0;
@@ -375,7 +377,7 @@ export default function AdminScreen() {
     return orders.filter((o) => {
       const t = new Date(o.created_at).getTime();
       return t >= prevFrom.getTime() && t < from.getTime() && o.status === "delivered";
-    }).reduce((s, o) => s + o.total, 0);
+    }).reduce((s, o) => s + (o.total_price ?? 0), 0);
   }, [orders, period]);
 
   const revTrend = prevRevenue > 0 ? Math.round(((totalRevenue - prevRevenue) / prevRevenue) * 100) : 0;
@@ -403,7 +405,7 @@ export default function AdminScreen() {
   const topProducts = useMemo((): TopProduct[] => {
     const map: Record<string, TopProduct> = {};
     deliveredOrders.forEach((o) => {
-      o.items.forEach((item) => {
+      (o.items || []).forEach((item) => {
         if (!map[item.name]) map[item.name] = { name: item.name, qty: 0, revenue: 0 };
         map[item.name].qty += item.qty;
         map[item.name].revenue += item.price * item.qty;
@@ -420,7 +422,7 @@ export default function AdminScreen() {
       if (o.status !== "delivered") return;
       const k = o.customer_phone;
       if (!map[k]) map[k] = { name: o.customer_name, phone: k, total: 0, orderCount: 0, class: "C" };
-      map[k].total += o.total; map[k].orderCount += 1;
+      map[k].total += (o.total_price ?? 0); map[k].orderCount += 1;
     });
     const list = Object.values(map).sort((a, b) => b.total - a.total);
     const grandTotal = list.reduce((s, c) => s + c.total, 0);
@@ -758,11 +760,11 @@ export default function AdminScreen() {
                         <View style={{ flex: 1 }}>
                           <Text style={an.orderName}>{o.customer_name}</Text>
                           <Text style={an.orderPhone}>{o.customer_phone}</Text>
-                          <Text style={an.orderItems} numberOfLines={1}>{o.items.map((it) => `${it.name} ×${it.qty}`).join(", ")}</Text>
+                          <Text style={an.orderItems} numberOfLines={1}>{(o.items || []).map((it) => `${it.name} ×${it.qty}`).join(", ")}</Text>
                           <Text style={an.orderDate}>{new Date(o.created_at).toLocaleDateString("uz-UZ")}</Text>
                         </View>
                         <View style={{ alignItems: "flex-end", gap: 4 }}>
-                          <Text style={an.orderTotal}>{formatPrice(o.total)}</Text>
+                          <Text style={an.orderTotal}>{formatPrice(o.total_price ?? 0)}</Text>
                           <View style={[an.orderStatus, { backgroundColor: STATUS_COLOR[o.status] + "20" }]}>
                             <Text style={[an.orderStatusTxt, { color: STATUS_COLOR[o.status] }]}>{STATUS_LABEL[o.status]}</Text>
                           </View>
